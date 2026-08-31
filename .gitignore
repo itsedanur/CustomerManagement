@@ -1,0 +1,50 @@
+# Environment Files
+.env
+.env.*
+!.env.example
+
+# Dependency Directories
+node_modules/
+frontend/node_modules/
+
+# Production / Build outputs
+target/
+frontend/dist/
+build/
+dist/
+out/
+bin/
+
+# Logs and databases
+*.log
+logs/
+*.sqlite
+
+# OS Metadata / System files
+.DS_Store
+.DS_Store?
+ehthumbs.db
+Thumbs.db
+
+# IDEs and Editors
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+!.vscode/extensions.json
+.settings/
+.project
+.classpath
+.factorypath
+.apt_generated
+.springBeans
+.sts4-cache
+
+# Python scratch / utility scripts (if any)
+*.py
+__pycache__/
+*.pyc
+
+# Local/Private Configuration files
+docker-compose.override.yml
