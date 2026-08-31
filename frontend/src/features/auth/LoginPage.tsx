@@ -69,7 +69,7 @@ export default function LoginPage() {
             {mutation.isError && (
               <Alert variant="destructive">
                 <AlertDescription>
-                  Invalid credentials. Please try again.
+                  {((mutation.error as any)?.response?.data?.message) || 'Invalid credentials. Please try again.'}
                 </AlertDescription>
               </Alert>
             )}

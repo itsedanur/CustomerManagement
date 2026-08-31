@@ -36,6 +36,7 @@ public class UserService {
 
 
     @Transactional(readOnly = true)
+    @org.springframework.cache.annotation.Cacheable(value = "assignableUsers", key = "'list'")
     public List<UserResponse> getAssignableUsers() {
         return userRepository.findByEnabledTrue().stream()
                 .map(userMapper::toResponse)
@@ -48,6 +49,7 @@ public class UserService {
     }
 
     @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = "assignableUsers", allEntries = true)
     public UserResponse createUser(CreateUserRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new EmailAlreadyExistsException("USER_EMAIL_ALREADY_EXISTS");
@@ -64,6 +66,7 @@ public class UserService {
     }
 
     @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = "assignableUsers", allEntries = true)
     public UserResponse updateUser(Long id, UpdateUserRequest request) {
         User user = getUserEntity(id);
         userMapper.updateEntityFromRequest(request, user);
@@ -75,6 +78,7 @@ public class UserService {
     }
 
     @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = "assignableUsers", allEntries = true)
     public UserResponse changeUserRole(Long id, ChangeUserRoleRequest request) {
         User user = getUserEntity(id);
         user.setRole(request.getRole());
@@ -86,6 +90,7 @@ public class UserService {
     }
 
     @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = "assignableUsers", allEntries = true)
     public UserResponse changeUserStatus(Long id, ChangeUserStatusRequest request) {
         User user = getUserEntity(id);
         user.setEnabled(request.getEnabled());

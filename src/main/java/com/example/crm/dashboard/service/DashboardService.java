@@ -17,6 +17,7 @@ public class DashboardService {
     private final TicketRepository ticketRepository;
 
     @Transactional(readOnly = true)
+    @org.springframework.cache.annotation.Cacheable(value = "dashboardSummary", key = "'summary'")
     public DashboardSummaryResponse getSummary() {
         java.util.Map<String, Long> ticketDist = new java.util.HashMap<>();
         for (TicketStatus status : TicketStatus.values()) {

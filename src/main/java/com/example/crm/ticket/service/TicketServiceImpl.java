@@ -51,6 +51,7 @@ public class TicketServiceImpl implements TicketService {
 
     @Override
     @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = "dashboardSummary", allEntries = true)
     public TicketResponse createTicket(Long customerId, CreateTicketRequest request) {
         Customer customer = customerRepository.findById(customerId)
                 .orElseThrow(() -> new CustomerNotFoundException("Customer not found with id: " + customerId));
@@ -102,6 +103,7 @@ public class TicketServiceImpl implements TicketService {
 
     @Override
     @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = "dashboardSummary", allEntries = true)
     public TicketResponse updateTicketContent(Long id, UpdateTicketRequest request) {
         Ticket ticket = getTicketEntity(id);
         checkAgentOwnership(ticket);
@@ -111,6 +113,7 @@ public class TicketServiceImpl implements TicketService {
 
     @Override
     @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = "dashboardSummary", allEntries = true)
     public TicketResponse assignTicket(Long id, AssignTicketRequest request) {
         Ticket ticket = getTicketEntity(id);
         
@@ -135,6 +138,7 @@ public class TicketServiceImpl implements TicketService {
 
     @Override
     @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = "dashboardSummary", allEntries = true)
     public TicketResponse startProgress(Long id) {
         Ticket ticket = getTicketEntity(id);
         checkAgentOwnership(ticket);
@@ -150,6 +154,7 @@ public class TicketServiceImpl implements TicketService {
 
     @Override
     @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = "dashboardSummary", allEntries = true)
     public TicketResponse resolveTicket(Long id) {
         Ticket ticket = getTicketEntity(id);
         checkAgentOwnership(ticket);
@@ -166,6 +171,7 @@ public class TicketServiceImpl implements TicketService {
 
     @Override
     @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = "dashboardSummary", allEntries = true)
     public TicketResponse closeTicket(Long id) {
         Ticket ticket = getTicketEntity(id);
         checkAgentOwnership(ticket);
@@ -182,6 +188,7 @@ public class TicketServiceImpl implements TicketService {
 
     @Override
     @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = "dashboardSummary", allEntries = true)
     public TicketResponse reopenTicket(Long id) {
         Ticket ticket = getTicketEntity(id);
         checkAgentOwnership(ticket);
@@ -198,6 +205,7 @@ public class TicketServiceImpl implements TicketService {
 
     @Override
     @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = "dashboardSummary", allEntries = true)
     public TicketResponse changePriority(Long ticketId, com.example.crm.ticket.dto.ChangePriorityRequest request) {
         Ticket ticket = ticketRepository.findById(ticketId)
                 .orElseThrow(() -> new EntityNotFoundException("Destek talebi bulunamadı: " + ticketId));

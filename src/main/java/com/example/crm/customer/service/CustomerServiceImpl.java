@@ -70,6 +70,7 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = "dashboardSummary", allEntries = true)
     public CustomerResponse createCustomer(CreateCustomerRequest request) {
         if (customerRepository.existsByEmail(request.getEmail())) {
             throw new EmailAlreadyExistsException("Email already exists: " + request.getEmail());
@@ -86,6 +87,7 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = "dashboardSummary", allEntries = true)
     public CustomerResponse updateCustomer(Long id, UpdateCustomerRequest request) {
         Customer existingCustomer = customerRepository.findById(id)
                 .orElseThrow(() -> new CustomerNotFoundException("Customer not found with id: " + id));
@@ -105,6 +107,7 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = "dashboardSummary", allEntries = true)
     public void deleteCustomer(Long id) {
         if (!customerRepository.existsById(id)) {
             throw new CustomerNotFoundException("Customer not found with id: " + id);
