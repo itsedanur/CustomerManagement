@@ -14,20 +14,14 @@ import {
 } from '../../components/ui/table';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
-import { Badge } from '../../components/ui/badge';
 import { Card, CardContent, CardHeader } from '../../components/ui/card';
-import { Search, Plus, Eye, Edit, Trash2, Users } from 'lucide-react';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '../../components/ui/dialog';
-import { Skeleton } from '../../components/ui/skeleton';
+import { Search, Plus, Eye, Edit, Trash2, X, ChevronLeft, ChevronRight, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
+import { StatusBadge } from '../../components/ui/status-badge';
+import { UserAvatar } from '../../components/ui/user-avatar';
+import { EmptyState } from '../../components/ui/empty-state';
+import { TableSkeleton } from '../../components/ui/skeletons';
+import { ConfirmDialog } from '../../components/ui/confirm-dialog';
 
 export default function CustomerListPage() {
   const navigate = useNavigate();
@@ -37,6 +31,8 @@ export default function CustomerListPage() {
   const [page, setPage] = useState(0);
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [typeFilter, setTypeFilter] = useState<string>('ALL');
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const { data, isLoading, isError } = useQuery({
@@ -53,23 +49,22 @@ export default function CustomerListPage() {
     },
     onError: () => {
       setDeleteId(null);
-      toast.error('Bu müşteri ilişkili kayıtları bulunduğu için silinemez.');
+      toast.error('Bu müşteri ilişkili kayıtları (destek talebi/adres) bulunduğu için silinemez.');
     },
   });
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setSearch(searchInput);
     setPage(0);
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'ACTIVE': return <Badge className="bg-emerald-500 hover:bg-emerald-600">Aktif</Badge>;
-      case 'INACTIVE': return <Badge variant="secondary">Pasif</Badge>;
-      case 'BLOCKED': return <Badge variant="destructive">Engelli</Badge>;
-      default: return <Badge>{status}</Badge>;
-    }
+  const handleClearFilters = () => {
+    setSearchInput('');
+    setSearch('');
+    setStatusFilter('ALL');
+    setTypeFilter('ALL');
+    setPage(0);
   };
 
   const getCustomerTypeTr = (type: string) => {
@@ -83,105 +78,146 @@ export default function CustomerListPage() {
   const canManage = user?.role === 'ADMIN' || user?.role === 'MANAGER';
   const canDelete = user?.role === 'ADMIN';
 
+  // Filter client side if status/type filters applied (backend search supports text query)
+  const filteredContent = data?.content.filter(customer => {
+    if (statusFilter !== 'ALL' && customer.status !== statusFilter) return false;
+    if (typeFilter !== 'ALL' && customer.customerType !== typeFilter) return false;
+    return true;
+  }) || [];
+
+  if (isLoading) {
+    return <TableSkeleton />;
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between gap-4">
-        <h2 className="text-2xl font-bold tracking-tight">Müşteriler</h2>
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="crm-page-title">Müşteriler</h1>
+          <p className="crm-secondary-text mt-1">Müşteri hesapları, şirket bilgileri ve iletişim yönetimi</p>
+        </div>
         
         {canManage && (
-          <Button onClick={() => navigate('/customers/new')} className="shrink-0">
-            <Plus className="mr-2 h-4 w-4" /> Yeni Müşteri
+          <Button onClick={() => navigate('/customers/new')} className="bg-slate-900 text-white hover:bg-slate-800 text-xs h-9 shadow-xs">
+            <Plus className="mr-1.5 h-4 w-4" /> Yeni Müşteri Ekle
           </Button>
         )}
       </div>
 
-      <Card>
-        <CardHeader className="pb-4">
-          <form onSubmit={handleSearch} className="flex gap-2 max-w-sm">
-            <div className="relative flex-1">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
+      {/* Main Container */}
+      <Card className="border border-slate-200/80 shadow-xs bg-white">
+        <CardHeader className="p-4 border-b border-slate-100 bg-slate-50/40">
+          <form onSubmit={handleSearchSubmit} className="flex flex-wrap items-center gap-3">
+            <div className="relative flex-1 min-w-[200px] max-w-md">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
               <Input
-                placeholder="Müşteri ara..."
-                className="pl-9"
+                placeholder="İsim, e-posta veya şirket ara..."
+                className="pl-9 h-9 text-xs bg-white"
                 value={searchInput}
-                onChange={(e: React.FormEvent) => setSearchInput((e.target as HTMLInputElement).value)}
+                onChange={(e) => setSearchInput(e.target.value)}
               />
             </div>
-            <Button type="submit" variant="secondary">Ara</Button>
+
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="h-9 px-3 rounded-md border border-slate-200 text-xs bg-white font-medium text-slate-700 focus:outline-hidden focus:ring-1 focus:ring-slate-400"
+            >
+              <option value="ALL">Tüm Durumlar</option>
+              <option value="ACTIVE">Aktif</option>
+              <option value="INACTIVE">Pasif</option>
+              <option value="SUSPENDED">Engelli</option>
+            </select>
+
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className="h-9 px-3 rounded-md border border-slate-200 text-xs bg-white font-medium text-slate-700 focus:outline-hidden focus:ring-1 focus:ring-slate-400"
+            >
+              <option value="ALL">Tüm Tipler</option>
+              <option value="INDIVIDUAL">Bireysel</option>
+              <option value="CORPORATE">Kurumsal</option>
+            </select>
+
+            <Button type="submit" variant="secondary" size="sm" className="h-9 text-xs">
+              Filtrele
+            </Button>
+
+            {(search || statusFilter !== 'ALL' || typeFilter !== 'ALL') && (
+              <Button type="button" variant="ghost" size="sm" onClick={handleClearFilters} className="h-9 text-xs text-slate-500">
+                <X className="h-3.5 w-3.5 mr-1" /> Temizle
+              </Button>
+            )}
           </form>
         </CardHeader>
-        <CardContent>
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Müşteri</TableHead>
-                  <TableHead>Şirket</TableHead>
-                  <TableHead>E-posta</TableHead>
-                  <TableHead>Tip</TableHead>
-                  <TableHead>Durum</TableHead>
-                  <TableHead className="text-right">İşlemler</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  Array.from({ length: 5 }).map((_, i) => (
-                    <TableRow key={i}>
-                      <TableCell><Skeleton className="h-4 w-[150px]" /></TableCell>
-                      <TableCell><Skeleton className="h-4 w-[100px]" /></TableCell>
-                      <TableCell><Skeleton className="h-4 w-[200px]" /></TableCell>
-                      <TableCell><Skeleton className="h-4 w-[80px]" /></TableCell>
-                      <TableCell><Skeleton className="h-6 w-[60px]" /></TableCell>
-                      <TableCell className="text-right"><Skeleton className="h-8 w-24 ml-auto" /></TableCell>
-                    </TableRow>
-                  ))
-                ) : isError ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-12">
-                      <div className="flex flex-col items-center justify-center space-y-3">
-                        <Users className="h-12 w-12 text-red-300" />
-                        <div className="text-lg font-medium text-red-900">Müşteriler yüklenemedi.</div>
-                        <p className="text-sm text-red-500 max-w-sm mx-auto">
-                          Bir hata oluştu. Lütfen sayfayı yenileyin veya tekrar deneyin.
-                        </p>
-                        <Button variant="outline" onClick={() => queryClient.invalidateQueries({ queryKey: ['customers'] })} className="mt-4">
-                          Tekrar Dene
-                        </Button>
-                      </div>
-                    </TableCell>
+        <CardContent className="p-0">
+          {isError ? (
+            <div className="p-8 text-center text-rose-600">
+              <ShieldAlert className="h-8 w-8 mx-auto mb-2 text-rose-500" />
+              <h3 className="font-semibold text-sm">Müşteriler yüklenemedi.</h3>
+              <p className="text-xs text-rose-500 mt-1 mb-4">Bir sunucu hatası oluştu.</p>
+              <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['customers'] })}>
+                Tekrar Dene
+              </Button>
+            </div>
+          ) : filteredContent.length === 0 ? (
+            search || statusFilter !== 'ALL' || typeFilter !== 'ALL' ? (
+              <EmptyState
+                title="Aramanızla eşleşen müşteri bulunamadı"
+                description="Filtreleme kriterlerinizi değiştirerek veya aramayı temizleyerek tekrar deneyebilirsiniz."
+                actionLabel="Filtreleri Temizle"
+                onAction={handleClearFilters}
+              />
+            ) : (
+              <EmptyState
+                title="Henüz müşteri eklenmemiş"
+                description="CRM sisteminizde kayıtlı müşteri bulunmuyor. İlk müşterinizi oluşturarak başlayın."
+                actionLabel={canManage ? "Yeni Müşteri Ekle" : undefined}
+                onAction={canManage ? () => navigate('/customers/new') : undefined}
+              />
+            )
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="crm-table-header">
+                    <TableHead className="w-64">Müşteri</TableHead>
+                    <TableHead>Şirket</TableHead>
+                    <TableHead>E-posta</TableHead>
+                    <TableHead className="w-24">Tip</TableHead>
+                    <TableHead className="w-28">Durum</TableHead>
+                    <TableHead className="w-32 text-right">İşlemler</TableHead>
                   </TableRow>
-                ) : data?.content.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-12">
-                      <div className="flex flex-col items-center justify-center space-y-3">
-                        <Users className="h-12 w-12 text-slate-300" />
-                        <div className="text-lg font-medium text-slate-900">Müşteri bulunamadı.</div>
-                        <p className="text-sm text-slate-500 max-w-sm mx-auto">
-                          Yeni müşteri ekleyerek CRM'i kullanmaya başlayabilirsiniz.
-                        </p>
-                        {canManage && (
-                           <Button onClick={() => navigate('/customers/new')} className="mt-4">
-                             <Plus className="mr-2 h-4 w-4" /> Yeni Müşteri
-                           </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  data?.content.map((customer) => (
-                    <TableRow key={customer.id}>
-                      <TableCell className="font-medium">
-                        {customer.firstName} {customer.lastName}
+                </TableHeader>
+                <TableBody>
+                  {filteredContent.map((customer) => (
+                    <TableRow key={customer.id} className="hover:bg-slate-50/80 crm-transition">
+                      <TableCell className="font-medium text-xs text-slate-900">
+                        <div className="flex items-center gap-3">
+                          <UserAvatar name={`${customer.firstName} ${customer.lastName}`} size="sm" />
+                          <div className="flex flex-col">
+                            <span className="font-semibold text-slate-900">
+                              {customer.firstName} {customer.lastName}
+                            </span>
+                            <span className="text-[11px] text-slate-400 sm:hidden">{customer.email}</span>
+                          </div>
+                        </div>
                       </TableCell>
-                      <TableCell>{customer.company}</TableCell>
-                      <TableCell>{customer.email}</TableCell>
-                      <TableCell>{getCustomerTypeTr(customer.customerType)}</TableCell>
-                      <TableCell>{getStatusBadge(customer.status)}</TableCell>
+                      <TableCell className="text-xs text-slate-600">{customer.company || '-'}</TableCell>
+                      <TableCell className="text-xs text-slate-600">{customer.email}</TableCell>
+                      <TableCell className="text-xs text-slate-600 font-medium">
+                        {getCustomerTypeTr(customer.customerType)}
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge status={customer.status} />
+                      </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
+                        <div className="flex items-center justify-end gap-1">
                           <Button 
                             variant="ghost" 
                             size="icon" 
+                            className="h-8 w-8 text-slate-500 hover:text-slate-900 hover:bg-slate-100"
                             onClick={() => navigate(`/customers/${customer.id}`)}
                             title="Görüntüle"
                           >
@@ -192,6 +228,7 @@ export default function CustomerListPage() {
                             <Button 
                               variant="ghost" 
                               size="icon" 
+                              className="h-8 w-8 text-slate-500 hover:text-slate-900 hover:bg-slate-100"
                               onClick={() => navigate(`/customers/${customer.id}/edit`)}
                               title="Düzenle"
                             >
@@ -200,74 +237,68 @@ export default function CustomerListPage() {
                           )}
 
                           {canDelete && (
-                            <Dialog open={deleteId === customer.id} onOpenChange={(open: boolean) => !open && setDeleteId(null)}>
-                              <DialogTrigger>
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon" 
-                                  className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                                  onClick={() => setDeleteId(customer.id)}
-                                  title="Sil"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </DialogTrigger>
-                              <DialogContent>
-                                <DialogHeader>
-                                  <DialogTitle>Müşteriyi silmek istediğinize emin misiniz?</DialogTitle>
-                                  <DialogDescription>
-                                    Bu işlem geri alınamaz. Müşteri ve ilişkili verileri kalıcı olarak silinecektir.
-                                  </DialogDescription>
-                                </DialogHeader>
-                                <DialogFooter>
-                                  <Button variant="outline" onClick={() => setDeleteId(null)}>İptal</Button>
-                                  <Button 
-                                    variant="destructive" 
-                                    onClick={() => deleteMutation.mutate(customer.id)}
-                                    disabled={deleteMutation.isPending}
-                                  >
-                                    {deleteMutation.isPending ? 'Siliniyor...' : 'Sil'}
-                                  </Button>
-                                </DialogFooter>
-                              </DialogContent>
-                            </Dialog>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 text-slate-500 hover:text-rose-600 hover:bg-rose-50"
+                              onClick={() => setDeleteId(customer.id)}
+                              title="Sil"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           )}
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
 
+          {/* Pagination Controls */}
           {data && data.totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4">
-              <span className="text-sm text-slate-500">
-                Sayfa {data.page + 1} / {data.totalPages}
+            <div className="flex items-center justify-between p-4 border-t border-slate-100 bg-slate-50/30">
+              <span className="text-xs text-slate-500 font-medium">
+                Sayfa <strong className="text-slate-900">{data.page + 1}</strong> / {data.totalPages} ({data.totalElements} Kayıt)
               </span>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-1.5">
                 <Button 
                   variant="outline" 
                   size="sm" 
+                  className="h-8 text-xs gap-1"
                   onClick={() => setPage(p => Math.max(0, p - 1))}
                   disabled={data.first}
                 >
-                  Önceki
+                  <ChevronLeft className="h-3.5 w-3.5" /> Önceki
                 </Button>
                 <Button 
                   variant="outline" 
                   size="sm" 
+                  className="h-8 text-xs gap-1"
                   onClick={() => setPage(p => p + 1)}
                   disabled={data.last}
                 >
-                  Sonraki
+                  Sonraki <ChevronRight className="h-3.5 w-3.5" />
                 </Button>
               </div>
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmDialog
+        open={deleteId !== null}
+        onOpenChange={(open) => !open && setDeleteId(null)}
+        title="Müşteriyi Sil"
+        description="Müşteri kaydını silmek istediğinize emin misiniz? Müşteriye ait destek talepleri veya adresler varsa silme işlemi engellenecektir."
+        confirmText="Müşteriyi Sil"
+        cancelText="Vazgeç"
+        variant="destructive"
+        onConfirm={() => deleteId && deleteMutation.mutate(deleteId)}
+        isLoading={deleteMutation.isPending}
+      />
     </div>
   );
 }

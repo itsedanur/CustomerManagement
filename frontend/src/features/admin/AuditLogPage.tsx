@@ -15,11 +15,12 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
-import { Skeleton } from '../../components/ui/skeleton';
-import { Activity as ActivityIcon } from 'lucide-react';
+import { Activity as ActivityIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAuthStore } from '../../app/store';
 import { Navigate } from 'react-router';
-import { PageHeader } from '../../components/ui/page-header';
+import { UserAvatar } from '../../components/ui/user-avatar';
+import { TableSkeleton } from '../../components/ui/skeletons';
+import { EmptyState } from '../../components/ui/empty-state';
 
 export default function AuditLogPage() {
   const { user } = useAuthStore();
@@ -37,128 +38,120 @@ export default function AuditLogPage() {
 
   const getActionBadgeTr = (action: string) => {
     switch(action) {
-      case 'LOGIN': return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">GİRİŞ</Badge>;
-      case 'CUSTOMER_CREATE': return <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">MÜŞTERİ EKLENDİ</Badge>;
-      case 'CUSTOMER_UPDATE': return <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">MÜŞTERİ GÜNCELLEDİ</Badge>;
-      case 'CUSTOMER_DELETE': return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">MÜŞTERİ SİLİNDİ</Badge>;
-      case 'TICKET_CREATE': return <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">TALEP OLUŞTURULDU</Badge>;
-      case 'TICKET_ASSIGN': return <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">TALEP ATANDI</Badge>;
-      case 'TICKET_STATUS_CHANGE': return <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">TALEP DURUM DEĞİŞTİ</Badge>;
-      case 'TICKET_PRIORITY_CHANGE': return <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">TALEP ÖNCELİK DEĞİŞTİ</Badge>;
-      case 'USER_CREATE': return <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">KULLANICI OLUŞTURULDU</Badge>;
-      case 'USER_UPDATE': return <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">KULLANICI GÜNCELLEDİ</Badge>;
-      case 'USER_ROLE_CHANGE': return <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">KULLANICI ROL DEĞİŞTİ</Badge>;
-      case 'USER_ENABLE': return <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">KULLANICI AKTİF EDİLDİ</Badge>;
-      case 'USER_DISABLE': return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">KULLANICI PASİF EDİLDİ</Badge>;
-      default: return <Badge variant="outline">{action}</Badge>;
+      case 'LOGIN': return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-xs font-semibold">GİRİŞ</Badge>;
+      case 'CUSTOMER_CREATE': return <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs font-semibold">MÜŞTERİ EKLENDİ</Badge>;
+      case 'CUSTOMER_UPDATE': return <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-xs font-semibold">MÜŞTERİ GÜNCELLEDİ</Badge>;
+      case 'CUSTOMER_DELETE': return <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 text-xs font-semibold">MÜŞTERİ SİLİNDİ</Badge>;
+      case 'TICKET_CREATE': return <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs font-semibold">TALEP OLUŞTURULDU</Badge>;
+      case 'TICKET_ASSIGN': return <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 text-xs font-semibold">TALEP ATANDI</Badge>;
+      case 'TICKET_STATUS_CHANGE': return <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 text-xs font-semibold">TALEP DURUM DEĞİŞTİ</Badge>;
+      case 'TICKET_PRIORITY_CHANGE': return <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 text-xs font-semibold">TALEP ÖNCELİK DEĞİŞTİ</Badge>;
+      case 'USER_CREATE': return <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs font-semibold">KULLANICI OLUŞTURULDU</Badge>;
+      case 'USER_UPDATE': return <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-xs font-semibold">KULLANICI GÜNCELLEDİ</Badge>;
+      case 'USER_ROLE_CHANGE': return <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 text-xs font-semibold">KULLANICI ROL DEĞİŞTİ</Badge>;
+      case 'USER_ENABLE': return <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs font-semibold">KULLANICI AKTİF EDİLDİ</Badge>;
+      case 'USER_DISABLE': return <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 text-xs font-semibold">KULLANICI PASİF EDİLDİ</Badge>;
+      default: return <Badge variant="outline" className="text-xs">{action}</Badge>;
     }
   };
 
+  if (isLoading) {
+    return <TableSkeleton />;
+  }
+
   return (
     <div className="space-y-6">
-      <PageHeader 
-        title="Denetim Kayıtları"
-        breadcrumbs={[
-          { label: 'Yönetim' },
-          { label: 'Denetim Kayıtları', href: '/admin/audit-logs' }
-        ]}
-      />
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200/80 pb-4">
+        <div>
+          <h1 className="crm-page-title">Denetim Kayıtları</h1>
+          <p className="crm-secondary-text mt-1">Sistem güvenliği, kullanıcı eylemleri ve yapısal değişikliklerin iz kaydı</p>
+        </div>
+      </div>
 
-      <Card>
-        <CardHeader className="pb-4">
-          <CardTitle>Sistem Denetim Kayıtları</CardTitle>
-          <CardDescription>Güvenlik ve işlem takibi için sistemdeki tüm yapısal değişikliklerin kaydı.</CardDescription>
+      <Card className="border border-slate-200/80 shadow-xs bg-white">
+        <CardHeader className="p-4 border-b border-slate-100 bg-slate-50/40">
+          <CardTitle className="text-sm font-semibold text-slate-900">Sistem Denetim Logları</CardTitle>
+          <CardDescription className="text-xs text-slate-500">Güvenlik izleme ve denetim log akışı</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Tarih</TableHead>
-                  <TableHead>Kullanıcı</TableHead>
-                  <TableHead>İşlem</TableHead>
-                  <TableHead>Varlık (ID)</TableHead>
-                  <TableHead>IP Adresi</TableHead>
-                  <TableHead>Detay</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  Array.from({ length: 5 }).map((_, i) => (
-                    <TableRow key={i}>
-                      <TableCell><Skeleton className="h-4 w-[120px]" /></TableCell>
-                      <TableCell><Skeleton className="h-4 w-[150px]" /></TableCell>
-                      <TableCell><Skeleton className="h-4 w-[120px]" /></TableCell>
-                      <TableCell><Skeleton className="h-4 w-[100px]" /></TableCell>
-                      <TableCell><Skeleton className="h-4 w-[100px]" /></TableCell>
-                      <TableCell><Skeleton className="h-4 w-[200px]" /></TableCell>
-                    </TableRow>
-                  ))
-                ) : data?.content.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-12">
-                      <div className="flex flex-col items-center justify-center space-y-3">
-                        <ActivityIcon className="h-12 w-12 text-slate-300" />
-                        <div className="text-lg font-medium text-slate-900">Henüz denetim kaydı bulunmuyor.</div>
-                      </div>
-                    </TableCell>
+        <CardContent className="p-0">
+          {data?.content.length === 0 ? (
+            <EmptyState
+              icon={ActivityIcon}
+              title="Denetim kaydı bulunmuyor"
+              description="Sistemde henüz kaydedilmiş bir denetim logu mevcut değil."
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="crm-table-header">
+                    <TableHead className="w-44">Tarih</TableHead>
+                    <TableHead className="w-56">Kullanıcı</TableHead>
+                    <TableHead className="w-48">İşlem</TableHead>
+                    <TableHead className="w-32">Varlık (ID)</TableHead>
+                    <TableHead className="w-32">IP Adresi</TableHead>
+                    <TableHead>Detay</TableHead>
                   </TableRow>
-                ) : (
-                  data?.content.map((log) => (
-                    <TableRow key={log.id} className="hover:bg-slate-50">
+                </TableHeader>
+                <TableBody>
+                  {data?.content.map((log) => (
+                    <TableRow key={log.id} className="hover:bg-slate-50/80 crm-transition text-xs">
                       <TableCell className="text-slate-500 whitespace-nowrap">
-                        {format(new Date(log.createdAt), 'dd MMM yyyy HH:mm:ss', { locale: tr })}
+                        {format(new Date(log.createdAt), 'dd MMM yyyy, HH:mm:ss', { locale: tr })}
                       </TableCell>
                       <TableCell>
-                        <div className="flex flex-col">
-                          <span className="font-medium text-slate-900">{log.user?.name || 'Sistem'}</span>
-                          <span className="text-xs text-slate-500">{log.user?.email || 'N/A'}</span>
+                        <div className="flex items-center gap-2.5">
+                          <UserAvatar name={log.user?.name || 'Sistem'} size="sm" />
+                          <div className="flex flex-col">
+                            <span className="font-semibold text-slate-900">{log.user?.name || 'Sistem'}</span>
+                            <span className="text-[10px] text-slate-400">{log.user?.email || 'System'}</span>
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell>
                         {getActionBadgeTr(log.action)}
                       </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-medium text-slate-700">{log.entityType}</span>
-                          <span className="text-slate-400">#</span>
-                          <span className="font-mono text-sm text-slate-600">{log.entityId}</span>
-                        </div>
+                      <TableCell className="font-mono text-slate-700">
+                        {log.entityType} #{log.entityId}
                       </TableCell>
-                      <TableCell className="font-mono text-xs text-slate-500">
+                      <TableCell className="font-mono text-[11px] text-slate-500">
                         {log.ipAddress}
                       </TableCell>
                       <TableCell className="text-slate-600 max-w-xs truncate" title={log.details}>
                         {log.details}
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
 
+          {/* Pagination */}
           {data && data.totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4">
-              <span className="text-sm text-slate-500">
-                Sayfa {data.page + 1} / {data.totalPages}
+            <div className="flex items-center justify-between p-4 border-t border-slate-100 bg-slate-50/30">
+              <span className="text-xs text-slate-500 font-medium">
+                Sayfa <strong className="text-slate-900">{data.page + 1}</strong> / {data.totalPages} ({data.totalElements} Log Kaydı)
               </span>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-1.5">
                 <Button 
                   variant="outline" 
                   size="sm" 
+                  className="h-8 text-xs gap-1"
                   onClick={() => setPage(p => Math.max(0, p - 1))}
                   disabled={data.first}
                 >
-                  Önceki
+                  <ChevronLeft className="h-3.5 w-3.5" /> Önceki
                 </Button>
                 <Button 
                   variant="outline" 
                   size="sm" 
+                  className="h-8 text-xs gap-1"
                   onClick={() => setPage(p => p + 1)}
                   disabled={data.last}
                 >
-                  Sonraki
+                  Sonraki <ChevronRight className="h-3.5 w-3.5" />
                 </Button>
               </div>
             </div>

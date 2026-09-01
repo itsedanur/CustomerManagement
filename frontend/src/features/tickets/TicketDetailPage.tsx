@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useParams } from 'react-router';
+import { useParams, useNavigate } from 'react-router';
 import { ticketApi } from '../../services/ticket';
 import { userApi } from '../../services/user';
 import { useAuthStore } from '../../app/store';
 
-import { Card, CardContent, CardHeader, CardTitle, } from '../../components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
-import { Badge } from '../../components/ui/badge';
 import { 
   Select,
   SelectContent,
@@ -15,30 +14,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../../components/ui/select';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '../../components/ui/dialog';
-import { CheckCircle2, Play, UserPlus, RefreshCcw, XCircle } from 'lucide-react';
-import { PageHeader } from '../../components/ui/page-header';
+import { CheckCircle2, Play, UserPlus, RefreshCcw, XCircle, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { StatusBadge } from '../../components/ui/status-badge';
+import { PriorityBadge } from '../../components/ui/priority-badge';
+import { DetailSkeleton } from '../../components/ui/skeletons';
+import { EmptyState } from '../../components/ui/empty-state';
+import { ConfirmDialog } from '../../components/ui/confirm-dialog';
+import { UserAvatar } from '../../components/ui/user-avatar';
 
 export default function TicketDetailPage() {
   const { id } = useParams();
   const ticketId = Number(id);
+  const navigate = useNavigate();
   
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
 
   const [assigneeId, setAssigneeId] = useState<string>('');
-  const [priority, setPriority] = useState<string>('');
   const [isCloseModalOpen, setIsCloseModalOpen] = useState(false);
 
   const { data: ticket, isLoading: isTicketLoading } = useQuery({
@@ -86,6 +81,7 @@ export default function TicketDetailPage() {
     onSuccess: (_, action) => {
       queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
       queryClient.invalidateQueries({ queryKey: ['customerTickets', ticket?.customer?.id] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
       
       const messages: Record<string, string> = {
         'start': 'Destek talebi işleme alındı.',
@@ -94,13 +90,10 @@ export default function TicketDetailPage() {
         'close': 'Destek talebi kapatıldı.'
       };
       toast.success(messages[action]);
-      
-      if (action === 'close') {
-        setIsCloseModalOpen(false);
-      }
+      setIsCloseModalOpen(false);
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message || 'İşlem başarısız.');
+      toast.error(err?.response?.data?.message || 'İşlem gerçekleştirilemedi.');
       setIsCloseModalOpen(false);
     }
   });
@@ -113,166 +106,204 @@ export default function TicketDetailPage() {
 
   const handlePriorityChange = (val: string | null) => {
     if (val) {
-      setPriority(val);
       priorityMutation.mutate(val);
     }
   };
 
-  const getPriorityBadgeTr = (priority: string) => {
-    switch(priority) {
-      case 'LOW': return 'DÜŞÜK';
-      case 'MEDIUM': return 'ORTA';
-      case 'HIGH': return 'YÜKSEK';
-      case 'CRITICAL': return 'KRİTİK';
-      default: return priority;
-    }
-  };
-
-  const getStatusBadgeTr = (status: string) => {
-    switch(status) {
-      case 'OPEN': return 'AÇIK';
-      case 'IN_PROGRESS': return 'İŞLEMDE';
-      case 'RESOLVED': return 'ÇÖZÜLDÜ';
-      case 'CLOSED': return 'KAPALI';
-      default: return status;
-    }
-  };
-
-  if (isTicketLoading) return <div className="p-8 text-center text-slate-500">Destek talebi yükleniyor...</div>;
-  if (!ticket) return <div className="p-8 text-center text-red-500">Destek talebi bulunamadı.</div>;
+  if (isTicketLoading) return <DetailSkeleton />;
+  if (!ticket) return (
+    <EmptyState
+      title="Destek talebi bulunamadı"
+      description="İstediğiniz destek kaydı mevcut değil veya kaldırılmış."
+      actionLabel="Taleplere Dön"
+      onAction={() => navigate('/tickets')}
+    />
+  );
 
   const canManage = user?.role === 'ADMIN' || user?.role === 'MANAGER';
   const assignedUser = assignableUsers?.find(u => u.id === ticket.assignedUserId);
 
   return (
     <div className="space-y-6">
-      <PageHeader 
-        title={`${ticket.ticketNumber} - ${ticket.subject}`}
-        backUrl="/tickets"
-        breadcrumbs={[
-          { label: 'Destek Talepleri', href: '/tickets' },
-          { label: ticket.ticketNumber }
-        ]}
-        actions={
-          <>
-            {ticket.status === 'OPEN' && (
-              <Button onClick={() => actionMutation.mutate('start')} disabled={actionMutation.isPending}>
-                <Play className="h-4 w-4 mr-2" /> İşleme Al
-              </Button>
-            )}
-            {ticket.status === 'IN_PROGRESS' && (
-              <Button onClick={() => actionMutation.mutate('resolve')} disabled={actionMutation.isPending} className="bg-emerald-600 hover:bg-emerald-700">
-                <CheckCircle2 className="mr-2 h-4 w-4" /> Çöz
-              </Button>
-            )}
-            {ticket.status === 'RESOLVED' && (
-              <Button onClick={() => actionMutation.mutate('reopen')} disabled={actionMutation.isPending} variant="outline">
-                <RefreshCcw className="mr-2 h-4 w-4" /> Yeniden Aç
-              </Button>
-            )}
-            {ticket.status !== 'CLOSED' && (
-              <Dialog open={isCloseModalOpen} onOpenChange={setIsCloseModalOpen}>
-                <DialogTrigger>
-                  <Button variant="secondary">
-                    <XCircle className="mr-2 h-4 w-4" /> Kapat
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Talebi kapatmak istediğinize emin misiniz?</DialogTitle>
-                    <DialogDescription>
-                      Bu işlem talebi sonlandıracaktır. Kapatıldıktan sonra tekrar üzerinde işlem yapılamayabilir.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsCloseModalOpen(false)}>İptal</Button>
-                    <Button variant="destructive" onClick={() => actionMutation.mutate('close')} disabled={actionMutation.isPending}>
-                      {actionMutation.isPending ? 'Kapatılıyor...' : 'Kapat'}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            )}
-          </>
-        }
-      />
-
-      <Card>
-        <CardHeader className="flex flex-row items-start justify-between pb-4">
-          <div className="space-y-1">
-            <CardTitle className="text-xl">{ticket.subject}</CardTitle>
-            <div className="text-sm text-slate-500">
-              Oluşturulma: {format(new Date(ticket.createdAt), 'dd MMMM yyyy, HH:mm', { locale: tr })} • Müşteri: {ticket.customer.firstName} {ticket.customer.lastName}
+      {/* Header Bar */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200/80 pb-4">
+        <div className="flex items-center gap-3">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => navigate('/tickets')}
+            className="h-8 text-xs gap-1 text-slate-600"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" /> Destek Taleplerine Dön
+          </Button>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="crm-page-title font-mono">{ticket.ticketNumber}</h1>
+              <StatusBadge status={ticket.status} />
+              <PriorityBadge priority={ticket.priority} />
             </div>
+            <p className="crm-secondary-text mt-0.5">{ticket.subject}</p>
           </div>
-          <div className="flex flex-col gap-2 items-end">
-            <Badge className={
-              ticket.status === 'OPEN' ? 'bg-blue-500' :
-              ticket.status === 'IN_PROGRESS' ? 'bg-amber-500' :
-              ticket.status === 'RESOLVED' ? 'bg-emerald-500' : 'bg-slate-500'
-            }>
-              {getStatusBadgeTr(ticket.status)}
-            </Badge>
-            <Badge variant="outline">{getPriorityBadgeTr(ticket.priority)}</Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="bg-slate-50 p-4 rounded-md border text-sm text-slate-800 whitespace-pre-wrap">
-            {ticket.description}
-          </div>
+        </div>
 
-          {canManage && (
-            <div className="flex flex-col gap-4 p-4 border rounded-md bg-slate-50">
-              
-              <div className="flex items-end gap-4">
-                <div className="flex-1 space-y-2">
-                  <label className="text-sm font-medium">Ata</label>
-                  <Select value={assigneeId} onValueChange={(val: string | null) => { if (val) setAssigneeId(val); }}>
-                    <SelectTrigger>
-                      <SelectValue placeholder={assignedUser ? `${assignedUser.firstName} ${assignedUser.lastName}` : "Kullanıcı seçin..."} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {assignableUsers?.map(u => (
-                        <SelectItem key={u.id} value={u.id.toString()}>
-                          {u.firstName} {u.lastName} ({u.role})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button onClick={handleAssign} disabled={!assigneeId || assignMutation.isPending}>
-                  <UserPlus className="h-4 w-4 mr-2" /> Ata
-                </Button>
+        {/* State Transition Actions */}
+        <div className="flex flex-wrap items-center gap-2">
+          {ticket.status === 'OPEN' && (
+            <Button size="sm" onClick={() => actionMutation.mutate('start')} disabled={actionMutation.isPending} className="bg-sky-600 hover:bg-sky-700 text-white h-8 text-xs gap-1.5 shadow-xs">
+              <Play className="h-3.5 w-3.5" /> İşleme Al
+            </Button>
+          )}
+          {ticket.status === 'IN_PROGRESS' && (
+            <Button size="sm" onClick={() => actionMutation.mutate('resolve')} disabled={actionMutation.isPending} className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-xs gap-1.5 shadow-xs">
+              <CheckCircle2 className="h-3.5 w-3.5" /> Çözüldü İşaretle
+            </Button>
+          )}
+          {ticket.status === 'RESOLVED' && (
+            <Button size="sm" variant="outline" onClick={() => actionMutation.mutate('reopen')} disabled={actionMutation.isPending} className="h-8 text-xs gap-1.5">
+              <RefreshCcw className="h-3.5 w-3.5 text-slate-500" /> Yeniden Aç
+            </Button>
+          )}
+          {ticket.status !== 'CLOSED' && (
+            <Button size="sm" variant="secondary" onClick={() => setIsCloseModalOpen(true)} className="h-8 text-xs gap-1.5 text-slate-700">
+              <XCircle className="h-3.5 w-3.5 text-slate-500" /> Talebi Kapat
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Ticket Details Box */}
+        <div className="lg:col-span-2 space-y-6">
+          <Card className="border border-slate-200/80 shadow-xs bg-white">
+            <CardHeader className="border-b border-slate-100 py-3.5">
+              <CardTitle className="text-sm font-semibold text-slate-900">Talep Açıklaması & İçeriği</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-4">
+              <h2 className="text-base font-bold text-slate-900 mb-3">{ticket.subject}</h2>
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-slate-800 leading-relaxed whitespace-pre-wrap">
+                {ticket.description}
               </div>
+            </CardContent>
+          </Card>
 
-              <div className="flex items-end gap-4">
-                <div className="flex-1 space-y-2">
-                  <label className="text-sm font-medium">Öncelik Değiştir</label>
-                  <Select value={priority || ticket.priority} onValueChange={handlePriorityChange}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Öncelik seçin..." />
+          {/* Customer Card */}
+          {ticket.customer && (
+            <Card className="border border-slate-200/80 shadow-xs bg-white">
+              <CardHeader className="border-b border-slate-100 py-3.5 flex flex-row items-center justify-between">
+                <CardTitle className="text-sm font-semibold text-slate-900">İlişkili Müşteri</CardTitle>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => navigate(`/customers/${ticket.customer.id}`)}
+                  className="h-7 text-xs text-slate-600 hover:text-slate-900"
+                >
+                  Müşteri Profiline Git
+                </Button>
+              </CardHeader>
+              <CardContent className="pt-4">
+                <div className="flex items-center gap-3">
+                  <UserAvatar name={`${ticket.customer.firstName} ${ticket.customer.lastName}`} size="md" />
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-900">{ticket.customer.firstName} {ticket.customer.lastName}</h3>
+                    <p className="text-[11px] text-slate-500">Müşteri ID: #{ticket.customer.id}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        {/* Sidebar Management Box */}
+        <div className="space-y-6">
+          {/* Assignment & Priority Settings Card */}
+          {canManage && (
+            <Card className="border border-slate-200/80 shadow-xs bg-white">
+              <CardHeader className="border-b border-slate-100 py-3.5">
+                <CardTitle className="text-sm font-semibold text-slate-900">Yönetim & Atama</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700">Temsilciye Ata</label>
+                  <div className="flex gap-2">
+                    <Select value={assigneeId} onValueChange={(val: string | null) => setAssigneeId(val || '')}>
+                      <SelectTrigger className="h-9 text-xs flex-1">
+                        <SelectValue placeholder={assignedUser ? `${assignedUser.firstName} ${assignedUser.lastName}` : "Kullanıcı seçiniz..."} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {assignableUsers?.map(u => (
+                          <SelectItem key={u.id} value={u.id.toString()}>
+                            {u.firstName} {u.lastName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button size="sm" onClick={handleAssign} disabled={!assigneeId || assignMutation.isPending} className="h-9 text-xs bg-slate-900 text-white">
+                      <UserPlus className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5 pt-2 border-t border-slate-100">
+                  <label className="text-xs font-semibold text-slate-700">Öncelik Değiştir</label>
+                  <Select value={ticket.priority} onValueChange={handlePriorityChange}>
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue placeholder="Öncelik seçiniz" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="LOW">Düşük</SelectItem>
-                      <SelectItem value="MEDIUM">Orta</SelectItem>
+                      <SelectItem value="MEDIUM">Normal</SelectItem>
                       <SelectItem value="HIGH">Yüksek</SelectItem>
                       <SelectItem value="CRITICAL">Kritik</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Ticket Information Summary Card */}
+          <Card className="border border-slate-200/80 shadow-xs bg-white">
+            <CardHeader className="border-b border-slate-100 py-3.5">
+              <CardTitle className="text-sm font-semibold text-slate-900">Talep Detayları</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-4 space-y-3">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-500">Atanan Temsilci:</span>
+                <span className="font-semibold text-slate-900">
+                  {assignedUser ? `${assignedUser.firstName} ${assignedUser.lastName}` : (ticket.assignedUserId ? `Kullanıcı #${ticket.assignedUserId}` : 'Atanmadı')}
+                </span>
               </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-500">Oluşturulma:</span>
+                <span className="font-medium text-slate-700">
+                  {format(new Date(ticket.createdAt), 'dd MMM yyyy, HH:mm', { locale: tr })}
+                </span>
+              </div>
+              {ticket.updatedAt && (
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-500">Son Güncelleme:</span>
+                  <span className="font-medium text-slate-700">
+                    {format(new Date(ticket.updatedAt), 'dd MMM yyyy, HH:mm', { locale: tr })}
+                  </span>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
 
-            </div>
-          )}
-
-          {!canManage && ticket.assignedUserId && (
-            <div className="text-sm">
-              <span className="font-medium">Atanan Kişi:</span> Kullanıcı ID {ticket.assignedUserId}
-            </div>
-          )}
-        </CardContent>
-
-      </Card>
+      {/* Confirm Close Modal */}
+      <ConfirmDialog
+        open={isCloseModalOpen}
+        onOpenChange={setIsCloseModalOpen}
+        title="Destek Talebini Kapat"
+        description="Bu destek talebini kapatmak istediğinize emin misiniz? Kapatılan talepler pasif statüye alınır."
+        confirmText="Talebi Kapat"
+        variant="destructive"
+        onConfirm={() => actionMutation.mutate('close')}
+        isLoading={actionMutation.isPending}
+      />
     </div>
   );
 }
