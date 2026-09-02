@@ -32,4 +32,6 @@ public interface TicketService {
     TicketResponse reopenTicket(Long ticketId);
 
     TicketResponse changePriority(Long ticketId, com.example.crm.ticket.dto.ChangePriorityRequest request);
+
+    byte[] exportTicketsCsv(TicketStatus status, TicketPriority priority, String search);
 }

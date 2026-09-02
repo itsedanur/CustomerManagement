@@ -4,17 +4,30 @@ import { useParams, useNavigate } from 'react-router';
 import { ticketApi } from '../../services/ticket';
 import { userApi } from '../../services/user';
 import { useAuthStore } from '../../app/store';
+import { ticketNoteApi } from '../../services/ticketNote';
+import { activityApi } from '../../services/activity';
 
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
-import { 
+import { Textarea } from '../../components/ui/textarea';
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '../../components/ui/select';
-import { CheckCircle2, Play, UserPlus, RefreshCcw, XCircle, ArrowLeft } from 'lucide-react';
+import {
+  CheckCircle2,
+  Play,
+  UserPlus,
+  RefreshCcw,
+  XCircle,
+  ArrowLeft,
+  MessageSquare,
+  Activity as ActivityIcon,
+  Trash2
+} from 'lucide-react';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -35,6 +48,7 @@ export default function TicketDetailPage() {
 
   const [assigneeId, setAssigneeId] = useState<string>('');
   const [isCloseModalOpen, setIsCloseModalOpen] = useState(false);
+  const [newNoteContent, setNewNoteContent] = useState('');
 
   const { data: ticket, isLoading: isTicketLoading } = useQuery({
     queryKey: ['ticket', ticketId],
@@ -45,6 +59,37 @@ export default function TicketDetailPage() {
     queryKey: ['assignableUsers'],
     queryFn: userApi.getAssignable,
     enabled: user?.role === 'ADMIN' || user?.role === 'MANAGER',
+  });
+
+  const { data: ticketNotes = [], isLoading: isNotesLoading } = useQuery({
+    queryKey: ['ticketNotes', ticketId],
+    queryFn: () => ticketNoteApi.getByTicketId(ticketId),
+    enabled: !!ticketId,
+  });
+
+  const { data: ticketActivities = [], isLoading: isActivitiesLoading } = useQuery({
+    queryKey: ['ticketActivities', ticketId],
+    queryFn: () => activityApi.getByTicket(ticketId),
+    enabled: !!ticketId,
+  });
+
+  const createNoteMutation = useMutation({
+    mutationFn: (content: string) => ticketNoteApi.create(ticketId, content),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ticketNotes', ticketId] });
+      setNewNoteContent('');
+      toast.success('İç not eklendi');
+    },
+    onError: () => toast.error('İç not eklenemedi')
+  });
+
+  const deleteNoteMutation = useMutation({
+    mutationFn: (noteId: number) => ticketNoteApi.delete(noteId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ticketNotes', ticketId] });
+      toast.success('İç not silindi');
+    },
+    onError: () => toast.error('İç not silinemedi')
   });
 
   const assignMutation = useMutation({
@@ -212,6 +257,104 @@ export default function TicketDetailPage() {
               </CardContent>
             </Card>
           )}
+
+          {/* Internal Operational Notes Card */}
+          <Card className="border border-slate-200/80 shadow-xs bg-white">
+            <CardHeader className="border-b border-slate-100 py-3.5">
+              <CardTitle className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 text-sky-600" /> Temsilci İç Notları
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 space-y-4">
+              {/* Add Note Form */}
+              <div className="space-y-2 bg-slate-50/60 p-3 rounded-lg border border-slate-200/80">
+                <label className="text-xs font-semibold text-slate-800">Talebine Özel İç Not Ekle</label>
+                <Textarea
+                  placeholder="Ekip içi not ve güncellemelerinizi yazın..."
+                  value={newNoteContent}
+                  onChange={(e) => setNewNoteContent(e.target.value)}
+                  rows={3}
+                  className="text-xs bg-white"
+                />
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    onClick={() => newNoteContent.trim() && createNoteMutation.mutate(newNoteContent.trim())}
+                    disabled={!newNoteContent.trim() || createNoteMutation.isPending}
+                    className="h-8 text-xs bg-slate-900 text-white hover:bg-slate-800"
+                  >
+                    Notu Kaydet
+                  </Button>
+                </div>
+              </div>
+
+              {/* Internal Notes List */}
+              {isNotesLoading ? (
+                <div className="text-center text-xs text-slate-400 py-3">İç notlar yükleniyor...</div>
+              ) : ticketNotes.length === 0 ? (
+                <div className="text-center text-xs text-slate-500 py-4">
+                  Bu talebe henüz iç not eklenmemiş.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {ticketNotes.map((note) => (
+                    <div key={note.id} className="p-3.5 rounded-lg border border-slate-200/80 bg-white hover:border-slate-300 crm-transition">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2 text-xs">
+                        <div className="flex items-center gap-2">
+                          <UserAvatar name={note.authorName} size="sm" />
+                          <span className="font-bold text-slate-900">{note.authorName}</span>
+                          <span className="text-[11px] text-slate-400">• {format(new Date(note.createdAt), 'dd MMM yyyy, HH:mm', { locale: tr })}</span>
+                        </div>
+                        {(user?.role === 'ADMIN' || user?.role === 'MANAGER' || note.authorUserId === user?.id) && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => deleteNoteMutation.mutate(note.id)}
+                            className="h-6 w-6 text-slate-400 hover:text-rose-600"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">{note.content}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Ticket Activity History Timeline Card */}
+          <Card className="border border-slate-200/80 shadow-xs bg-white">
+            <CardHeader className="border-b border-slate-100 py-3.5">
+              <CardTitle className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                <ActivityIcon className="h-4 w-4 text-indigo-600" /> Talep İşlem Geçmişi
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-5">
+              {isActivitiesLoading ? (
+                <div className="text-center text-xs text-slate-400 py-3">İşlem geçmişi yükleniyor...</div>
+              ) : ticketActivities.length === 0 ? (
+                <div className="text-center text-xs text-slate-500 py-4">
+                  Henüz bir işlem kaydı yok.
+                </div>
+              ) : (
+                <div className="relative pl-5 border-l-2 border-slate-200 space-y-4">
+                  {ticketActivities.map((act) => (
+                    <div key={act.id} className="relative">
+                      <div className="absolute -left-[27px] top-1 h-3.5 w-3.5 rounded-full bg-slate-800 border-2 border-white shadow-xs" />
+                      <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-100 text-xs">
+                        <p className="font-semibold text-slate-900">{act.description}</p>
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          {act.performedBy?.name || 'Sistem'} • {format(new Date(act.createdAt), 'dd MMM yyyy, HH:mm', { locale: tr })}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         {/* Sidebar Management Box */}

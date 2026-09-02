@@ -15,8 +15,10 @@ import com.example.crm.activity.service.ActivityService;
 import com.example.crm.activity.entity.ActivityType;
 import com.example.crm.audit.service.AuditLogService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +27,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class CustomerServiceImpl implements CustomerService {
 
     private final CustomerRepository customerRepository;
@@ -128,5 +131,46 @@ public class CustomerServiceImpl implements CustomerService {
         }
         customerRepository.deleteById(id);
         auditLogService.log("CUSTOMER_DELETE", "CUSTOMER", String.valueOf(id), "Müşteri silindi");
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public byte[] exportCustomersCsv(String search, CustomerStatus status, CustomerType customerType) {
+        Specification<Customer> spec = Specification.where((root, query, cb) -> cb.conjunction());
+        if (org.springframework.util.StringUtils.hasText(search)) {
+            String searchLower = "%" + search.toLowerCase().trim() + "%";
+            spec = spec.and((root, query, cb) -> cb.or(
+                    cb.like(cb.lower(root.get("firstName")), searchLower),
+                    cb.like(cb.lower(root.get("lastName")), searchLower),
+                    cb.like(cb.lower(root.get("email")), searchLower),
+                    cb.like(cb.lower(root.get("company")), searchLower)
+            ));
+        }
+        if (status != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("status"), status));
+        }
+        if (customerType != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("customerType"), customerType));
+        }
+
+        List<Customer> list = customerRepository.findAll(spec, Sort.by("createdAt").descending());
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("\uFEFF");
+        sb.append("ID,Adı,Soyadı,E-Posta,Telefon,Şirket,Müşteri Tipi,Durum,Kayıt Tarihi\n");
+
+        for (Customer c : list) {
+            sb.append(c.getId()).append(",")
+                    .append("\"").append(c.getFirstName().replace("\"", "\"\"")).append("\",")
+                    .append("\"").append(c.getLastName().replace("\"", "\"\"")).append("\",")
+                    .append("\"").append(c.getEmail().replace("\"", "\"\"")).append("\",")
+                    .append("\"").append(c.getPhone() != null ? c.getPhone().replace("\"", "\"\"") : "").append("\",")
+                    .append("\"").append(c.getCompany() != null ? c.getCompany().replace("\"", "\"\"") : "").append("\",")
+                    .append("\"").append(c.getCustomerType() == CustomerType.CORPORATE ? "Kurumsal" : "Bireysel").append("\",")
+                    .append("\"").append(c.getStatus()).append("\",")
+                    .append("\"").append(c.getCreatedAt() != null ? c.getCreatedAt() : "").append("\"\n");
+        }
+
+        return sb.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
     }
 }

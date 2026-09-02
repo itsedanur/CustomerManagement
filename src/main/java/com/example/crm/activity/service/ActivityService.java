@@ -16,5 +16,7 @@ public interface ActivityService {
 
     List<ActivityResponse> getCustomerActivities(Long customerId);
 
+    List<ActivityResponse> getTicketActivities(Long ticketId);
+
     Page<ActivityResponse> getAllActivities(Pageable pageable);
 }

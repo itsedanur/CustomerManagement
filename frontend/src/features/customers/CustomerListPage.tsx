@@ -26,6 +26,8 @@ import { mapCustomerType } from '../../utils/enum-mapper';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 
+import { FileSpreadsheet } from 'lucide-react';
+
 export default function CustomerListPage() {
   const [page, setPage] = useState(0);
   const [search, setSearch] = useState('');
@@ -36,6 +38,30 @@ export default function CustomerListPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
+
+  const handleExportCsv = () => {
+    const params = new URLSearchParams();
+    if (search) params.append('search', search);
+    if (statusFilter !== 'ALL') params.append('status', statusFilter);
+    if (typeFilter !== 'ALL') params.append('customerType', typeFilter);
+
+    const token = localStorage.getItem('token');
+    fetch(`/api/customers/export/csv?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.blob())
+      .then((blob) => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'musteriler.csv';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        toast.success('Müşteri listesi CSV olarak indirildi');
+      })
+      .catch(() => toast.error('CSV indirme başarısız'));
+  };
 
   const { data, isLoading } = useQuery({
     queryKey: ['customers', page, search, statusFilter, typeFilter],
@@ -76,11 +102,16 @@ export default function CustomerListPage() {
           <h1 className="crm-page-title">Müşteriler</h1>
           <p className="crm-secondary-text mt-1">Sistemdeki tüm bireysel ve kurumsal müşteri hesapları</p>
         </div>
-        {user?.role !== 'AGENT' && (
-          <Button onClick={() => navigate('/customers/new')} className="bg-slate-900 hover:bg-slate-800 text-white gap-2 shadow-xs">
-            <Plus className="h-4 w-4" /> Yeni Müşteri Ekle
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={handleExportCsv} className="h-9 text-xs gap-1.5 border-slate-300">
+            <FileSpreadsheet className="h-4 w-4 text-emerald-600" /> CSV'ye Aktar
           </Button>
-        )}
+          {user?.role !== 'AGENT' && (
+            <Button onClick={() => navigate('/customers/new')} className="bg-slate-900 hover:bg-slate-800 text-white gap-2 shadow-xs h-9 text-xs">
+              <Plus className="h-4 w-4" /> Yeni Müşteri Ekle
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Filter & Toolbar Bar */}

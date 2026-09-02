@@ -18,7 +18,7 @@ import org.springframework.orm.ObjectOptimisticLockingFailureException;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler({CustomerNotFoundException.class, AddressNotFoundException.class, TicketNotFoundException.class})
+    @ExceptionHandler({CustomerNotFoundException.class, AddressNotFoundException.class, TicketNotFoundException.class, ResourceNotFoundException.class})
     public ResponseEntity<ErrorResponse> handleNotFoundException(RuntimeException ex, HttpServletRequest request) {
         String errorCode = "NOT_FOUND";
         if (ex instanceof CustomerNotFoundException) errorCode = "CUSTOMER_NOT_FOUND";

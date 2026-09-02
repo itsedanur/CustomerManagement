@@ -28,6 +28,11 @@ export const activityApi = {
     const response = await api.get(`/api/customers/${customerId}/activities`);
     return response.data;
   },
+
+  getByTicket: async (ticketId: number): Promise<Activity[]> => {
+    const response = await api.get(`/api/activities/ticket/${ticketId}`);
+    return response.data;
+  },
   
   getAll: async (page = 0, size = 20): Promise<PageResponse<Activity>> => {
     const response = await api.get('/api/activities', {

@@ -85,6 +85,15 @@ public class ActivityServiceImpl implements ActivityService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<ActivityResponse> getTicketActivities(Long ticketId) {
+        return activityRepository.findByEntityIdOrderByCreatedAtDesc(ticketId)
+                .stream()
+                .map(activityMapper::toResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Page<ActivityResponse> getAllActivities(Pageable pageable) {
         return activityRepository.findAll(pageable)
                 .map(activityMapper::toResponse);

@@ -22,12 +22,39 @@ import { EmptyState } from '../../components/ui/empty-state';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 
+import { FileSpreadsheet } from 'lucide-react';
+import { toast } from 'sonner';
+
 export default function TicketListPage() {
   const [page, setPage] = useState(0);
   const [status, setStatus] = useState('ALL');
   const [priority, setPriority] = useState('ALL');
   const [search, setSearch] = useState('');
   const navigate = useNavigate();
+
+  const handleExportCsv = () => {
+    const params = new URLSearchParams();
+    if (status !== 'ALL') params.append('status', status);
+    if (priority !== 'ALL') params.append('priority', priority);
+    if (search) params.append('search', search);
+
+    const token = localStorage.getItem('token');
+    fetch(`/api/tickets/export/csv?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.blob())
+      .then((blob) => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'destek_talepleri.csv';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        toast.success('Destek talepleri CSV olarak indirildi');
+      })
+      .catch(() => toast.error('CSV indirme başarısız'));
+  };
 
   const { data, isLoading } = useQuery({
     queryKey: ['tickets', page, status, priority, search],
@@ -55,6 +82,9 @@ export default function TicketListPage() {
           <h1 className="crm-page-title">Destek Talepleri</h1>
           <p className="crm-secondary-text mt-1">Müşterilerden gelen tüm teknik ve operasyonel destek biletleri</p>
         </div>
+        <Button variant="outline" onClick={handleExportCsv} className="h-9 text-xs gap-1.5 border-slate-300">
+          <FileSpreadsheet className="h-4 w-4 text-emerald-600" /> CSV'ye Aktar
+        </Button>
       </div>
 
       {/* Toolbar / Filters */}

@@ -42,6 +42,19 @@ public class CustomerController {
         return ResponseEntity.ok(customerService.getAllCustomers(search, status, customerType, pageable));
     }
 
+    @GetMapping("/export/csv")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'AGENT')")
+    public ResponseEntity<byte[]> exportCustomersCsv(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) CustomerStatus status,
+            @RequestParam(required = false) CustomerType customerType) {
+        byte[] csvData = customerService.exportCustomersCsv(search, status, customerType);
+        return ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=musteriler.csv")
+                .header(org.springframework.http.HttpHeaders.CONTENT_TYPE, "text/csv; charset=UTF-8")
+                .body(csvData);
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'AGENT')")
     public ResponseEntity<CustomerResponse> getCustomerById(@PathVariable("id") Long id) {

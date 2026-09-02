@@ -47,6 +47,19 @@ public class TicketController {
         return ResponseEntity.ok(ticketService.getTickets(status, priority, customerId, assignedUserId, ticketNumber, search, pageable));
     }
 
+    @GetMapping("/tickets/export/csv")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'AGENT')")
+    public ResponseEntity<byte[]> exportTicketsCsv(
+            @RequestParam(required = false) TicketStatus status,
+            @RequestParam(required = false) TicketPriority priority,
+            @RequestParam(required = false) String search) {
+        byte[] csvData = ticketService.exportTicketsCsv(status, priority, search);
+        return ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=destek_talepleri.csv")
+                .header(org.springframework.http.HttpHeaders.CONTENT_TYPE, "text/csv; charset=UTF-8")
+                .body(csvData);
+    }
+
     @GetMapping("/customers/{customerId}/tickets")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'AGENT')")
     public ResponseEntity<PageResponse<TicketResponse>> getCustomerTickets(

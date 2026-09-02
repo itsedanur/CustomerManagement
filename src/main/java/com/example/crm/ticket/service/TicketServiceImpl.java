@@ -34,6 +34,8 @@ import org.springframework.transaction.annotation.Transactional;
 import jakarta.persistence.EntityNotFoundException;
 import java.time.LocalDateTime;
 import java.time.Year;
+import java.util.List;
+import org.springframework.data.domain.Sort;
 
 @Service
 @RequiredArgsConstructor
@@ -233,5 +235,43 @@ public class TicketServiceImpl implements TicketService {
                 throw new org.springframework.security.access.AccessDeniedException("Agents can only modify their own assigned tickets");
             }
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public byte[] exportTicketsCsv(TicketStatus status, TicketPriority priority, String search) {
+        Specification<Ticket> spec = Specification.where((root, query, cb) -> cb.conjunction());
+        if (status != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("status"), status));
+        }
+        if (priority != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("priority"), priority));
+        }
+        if (org.springframework.util.StringUtils.hasText(search)) {
+            spec = spec.and(TicketSpecification.hasSearch(search));
+        }
+
+        List<Ticket> list = ticketRepository.findAll(spec, Sort.by("createdAt").descending());
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("\uFEFF");
+        sb.append("Bilet No,Konu,Müşteri,Atanan Temsilci,Öncelik,Durum,Oluşturulma Tarihi,Çözülme Tarihi\n");
+
+        for (Ticket t : list) {
+            String customerName = t.getCustomer() != null ? (t.getCustomer().getFirstName() + " " + t.getCustomer().getLastName()).trim() : "";
+            String assignedName = t.getAssignedUser() != null ? (t.getAssignedUser().getFirstName() + " " + t.getAssignedUser().getLastName()).trim() : "Atanmadı";
+            if ("System Admin".equalsIgnoreCase(assignedName)) assignedName = "Sistem Yöneticisi";
+
+            sb.append("\"").append(t.getTicketNumber()).append("\",")
+                    .append("\"").append(t.getSubject().replace("\"", "\"\"")).append("\",")
+                    .append("\"").append(customerName.replace("\"", "\"\"")).append("\",")
+                    .append("\"").append(assignedName.replace("\"", "\"\"")).append("\",")
+                    .append("\"").append(t.getPriority()).append("\",")
+                    .append("\"").append(t.getStatus()).append("\",")
+                    .append("\"").append(t.getCreatedAt() != null ? t.getCreatedAt() : "").append("\",")
+                    .append("\"").append(t.getResolvedAt() != null ? t.getResolvedAt() : "").append("\"\n");
+        }
+
+        return sb.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
     }
 }

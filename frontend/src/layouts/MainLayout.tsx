@@ -4,6 +4,8 @@ import {
   LayoutDashboard, 
   Users, 
   Ticket, 
+  CheckSquare,
+  BarChart2,
   LogOut,
   Menu,
   ShieldAlert,
@@ -26,10 +28,11 @@ export default function MainLayout() {
   const getRoleLabel = (role?: string) => {
     switch (role) {
       case 'ADMIN':
-        return 'Yönetici';
+        return 'Sistem Yöneticisi';
       case 'MANAGER':
         return 'Yönetici Yrd.';
       case 'USER':
+      case 'AGENT':
         return 'Temsilci';
       default:
         return role || '';
@@ -41,13 +44,15 @@ export default function MainLayout() {
       title: 'Genel Bakış',
       items: [
         { name: 'Genel Bakış', path: '/', icon: LayoutDashboard },
+        { name: 'Raporlar & Analitik', path: '/reports', icon: BarChart2 },
       ],
     },
     {
-      title: 'Müşteri Yönetimi',
+      title: 'Müşteri & Operasyon',
       items: [
         { name: 'Müşteriler', path: '/customers', icon: Users },
         { name: 'Destek Talepleri', path: '/tickets', icon: Ticket },
+        { name: 'Görev & İş Takibi', path: '/tasks', icon: CheckSquare },
       ],
     },
     ...(user?.role === 'ADMIN' ? [

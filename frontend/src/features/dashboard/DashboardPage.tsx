@@ -26,8 +26,14 @@ import { mapTicketStatus, mapCustomerStatus } from '../../utils/enum-mapper';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 
+import { taskApi } from '../../services/task';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { CheckSquare, Plus, BarChart2 } from 'lucide-react';
+
 export default function DashboardPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const { data: summary, isLoading: isSummaryLoading } = useQuery({
     queryKey: ['dashboardSummary'],
@@ -37,6 +43,26 @@ export default function DashboardPage() {
   const { data: pendingTicketsData } = useQuery({
     queryKey: ['pendingTickets'],
     queryFn: () => ticketApi.getAll(0, 5, 'OPEN'),
+  });
+
+  const { data: myDueTodayTasks = [] } = useQuery({
+    queryKey: ['myDueTodayTasks'],
+    queryFn: taskApi.getMyDueToday,
+  });
+
+  const { data: myOverdueTasks = [] } = useQuery({
+    queryKey: ['myOverdueTasks'],
+    queryFn: taskApi.getMyOverdue,
+  });
+
+  const completeTaskMutation = useMutation({
+    mutationFn: (taskId: number) => taskApi.updateStatus(taskId, 'COMPLETED'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['myDueTodayTasks'] });
+      queryClient.invalidateQueries({ queryKey: ['myOverdueTasks'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      toast.success('Görev tamamlandı');
+    },
   });
 
   if (isSummaryLoading) {
@@ -87,15 +113,73 @@ export default function DashboardPage() {
           <h1 className="crm-page-title">Genel Bakış</h1>
           <p className="crm-secondary-text mt-1">Müşteri ilişkileri, açık destek talepleri ve günlük operasyonel göstergeler</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => navigate('/customers/new')} className="h-9 text-xs">
-            + Yeni Müşteri
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => navigate('/customers/new')} className="h-8 text-xs gap-1">
+            <Plus className="h-3.5 w-3.5" /> Yeni Müşteri
           </Button>
-          <Button size="sm" onClick={() => navigate('/tickets')} className="h-9 text-xs bg-slate-900 hover:bg-slate-800 text-white">
-            Tüm Talepler
+          <Button variant="outline" size="sm" onClick={() => navigate('/tickets')} className="h-8 text-xs gap-1">
+            <TicketIcon className="h-3.5 w-3.5" /> Talepler
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => navigate('/tasks')} className="h-8 text-xs gap-1">
+            <CheckSquare className="h-3.5 w-3.5" /> Görevler
+          </Button>
+          <Button size="sm" onClick={() => navigate('/reports')} className="h-8 text-xs bg-slate-900 hover:bg-slate-800 text-white gap-1">
+            <BarChart2 className="h-3.5 w-3.5" /> Raporlar
           </Button>
         </div>
       </div>
+
+      {/* Overdue Tasks Banner Warning */}
+      {myOverdueTasks.length > 0 && (
+        <div className="bg-rose-50 border border-rose-200 text-rose-800 p-3 rounded-lg flex items-center justify-between text-xs font-semibold">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-rose-600" />
+            <span>Gecikmiş {myOverdueTasks.length} adet göreviniz bulunmaktadır!</span>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => navigate('/tasks')} className="h-7 text-[11px] border-rose-300 text-rose-800 hover:bg-rose-100">
+            Görevlerime Git
+          </Button>
+        </div>
+      )}
+
+      {/* My Tasks Due Today Card Banner */}
+      <Card className="border border-slate-200/80 shadow-2xs bg-white">
+        <CardHeader className="p-4 border-b border-slate-100 bg-slate-50/40 flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <CheckSquare className="h-4 w-4 text-sky-600" /> Bugünkü Görevlerim ({myDueTodayTasks.length})
+            </CardTitle>
+            <CardDescription className="text-xs text-slate-500">Bugün tamamlanması gereken operasyonel aksiyonlar</CardDescription>
+          </div>
+          <Button variant="ghost" size="sm" onClick={() => navigate('/tasks')} className="h-7 text-xs text-sky-600 hover:text-sky-700">
+            Tüm Görevler &rarr;
+          </Button>
+        </CardHeader>
+        <CardContent className="p-4">
+          {myDueTodayTasks.length === 0 ? (
+            <p className="text-xs text-slate-500 text-center py-2">Bugün için planlanmış aksiyonunuz bulunmamaktadır.</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {myDueTodayTasks.map((t) => (
+                <div key={t.id} className="p-3 rounded-lg border border-slate-200/80 bg-slate-50/50 flex items-center justify-between text-xs">
+                  <div>
+                    <h5 className="font-bold text-slate-900 line-clamp-1">{t.title}</h5>
+                    <p className="text-[11px] text-slate-500 mt-0.5">{t.customerName || t.ticketNumber || 'Genel Görev'}</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => completeTaskMutation.mutate(t.id)}
+                    className="h-7 text-[11px] text-emerald-600 border-emerald-200 hover:bg-emerald-50 gap-1"
+                  >
+                    <CheckCircle2 className="h-3 w-3" /> Tamamla
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

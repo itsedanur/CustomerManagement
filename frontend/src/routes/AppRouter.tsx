@@ -8,6 +8,8 @@ import CustomerDetailPage from '../features/customers/CustomerDetailPage';
 import CustomerFormPage from '../features/customers/CustomerFormPage';
 import TicketListPage from '../features/tickets/TicketListPage';
 import TicketDetailPage from '../features/tickets/TicketDetailPage';
+import TaskListPage from '../features/tasks/TaskListPage';
+import ReportsPage from '../features/reports/ReportsPage';
 import AuditLogPage from '../features/admin/AuditLogPage';
 import UserManagementPage from '../features/admin/UserManagementPage';
 import { useEffect } from 'react';
@@ -42,6 +44,14 @@ const router = createBrowserRouter([
       {
         index: true,
         element: <DashboardPage />,
+      },
+      {
+        path: 'tasks',
+        element: <TaskListPage />,
+      },
+      {
+        path: 'reports',
+        element: <ReportsPage />,
       },
       {
         path: 'customers',

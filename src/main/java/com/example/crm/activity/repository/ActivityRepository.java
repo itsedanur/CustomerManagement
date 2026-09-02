@@ -14,6 +14,9 @@ public interface ActivityRepository extends JpaRepository<Activity, Long> {
     
     @EntityGraph(attributePaths = {"performedBy"})
     List<Activity> findByCustomerIdOrderByCreatedAtDesc(Long customerId);
+
+    @EntityGraph(attributePaths = {"performedBy"})
+    List<Activity> findByEntityIdOrderByCreatedAtDesc(Long entityId);
     
     @EntityGraph(attributePaths = {"performedBy"})
     Page<Activity> findByCustomerIdOrderByCreatedAtDesc(Long customerId, Pageable pageable);

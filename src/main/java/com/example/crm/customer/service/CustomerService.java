@@ -16,4 +16,5 @@ public interface CustomerService {
     CustomerResponse createCustomer(CreateCustomerRequest request);
     CustomerResponse updateCustomer(Long id, UpdateCustomerRequest request);
     void deleteCustomer(Long id);
+    byte[] exportCustomersCsv(String search, CustomerStatus status, CustomerType customerType);
 }

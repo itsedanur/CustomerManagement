@@ -36,6 +36,17 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Random;
 
+import com.example.crm.customer.entity.CustomerNote;
+import com.example.crm.customer.repository.CustomerNoteRepository;
+import com.example.crm.notification.entity.Notification;
+import com.example.crm.notification.repository.NotificationRepository;
+import com.example.crm.task.entity.CrmTask;
+import com.example.crm.task.entity.TaskPriority;
+import com.example.crm.task.entity.TaskStatus;
+import com.example.crm.task.repository.CrmTaskRepository;
+import com.example.crm.ticket.entity.TicketNote;
+import com.example.crm.ticket.repository.TicketNoteRepository;
+
 @Component
 @Profile({"dev", "demo", "default"})
 @ConditionalOnProperty(name = "crm.demo-data.enabled", havingValue = "true", matchIfMissing = true)
@@ -50,12 +61,16 @@ public class DemoDataSeeder implements ApplicationRunner {
     private final TicketRepository ticketRepository;
     private final ActivityRepository activityRepository;
     private final AuditLogRepository auditLogRepository;
+    private final CustomerNoteRepository customerNoteRepository;
+    private final TicketNoteRepository ticketNoteRepository;
+    private final CrmTaskRepository crmTaskRepository;
+    private final NotificationRepository notificationRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        logger.info("Checking Phase 13 realistic CRM demo dataset seeding status...");
+        logger.info("Checking Phase 14 CRM demo dataset seeding status...");
 
         // 1. Seed Users (Representatives) idempotently
         List<User> users = seedUsers();
@@ -72,8 +87,21 @@ public class DemoDataSeeder implements ApplicationRunner {
         // 5. Seed Activities & Audit Logs idempotently
         seedActivitiesAndAuditLogs(customers, tickets, users);
 
-        logger.info("DemoDataSeeder check completed. Total in DB: {} Users, {} Customers, {} Tickets.",
-                userRepository.count(), customerRepository.count(), ticketRepository.count());
+        // 6. Seed Phase 14 Customer Notes
+        seedCustomerNotes(customers, users);
+
+        // 7. Seed Phase 14 Ticket Notes
+        seedTicketNotes(tickets, users);
+
+        // 8. Seed Phase 14 CRM Tasks
+        seedTasks(customers, tickets, users);
+
+        // 9. Seed Phase 14 Notifications
+        seedNotifications(users, tickets);
+
+        logger.info("DemoDataSeeder check completed. Total in DB: {} Users, {} Customers, {} Tickets, {} Tasks, {} Customer Notes, {} Ticket Notes.",
+                userRepository.count(), customerRepository.count(), ticketRepository.count(),
+                crmTaskRepository.count(), customerNoteRepository.count(), ticketNoteRepository.count());
     }
 
     private List<User> seedUsers() {
@@ -386,6 +414,157 @@ public class DemoDataSeeder implements ApplicationRunner {
 
                 auditLogRepository.save(log);
             }
+        }
+    }
+
+    private void seedCustomerNotes(List<Customer> customers, List<User> users) {
+        if (customerNoteRepository.count() >= 20) return;
+
+        String[] noteContents = {
+                "Müşteri yeni entegrasyon paketi hakkında bilgi istedi.",
+                "Yıllık lisans yenileme sözleşmesi gönderildi, geri dönüş bekleniyor.",
+                "Müşteri temsilcisi değişikliği talep edildi.",
+                "Ödeme planı revize edildi, 3 taksit olarak güncellendi.",
+                "API erişim anahtarları sıfırlandı ve teknik ekibe iletildi.",
+                "VIP müşteri statüsüne yükseltildi, öncelikli destek tanımlandı.",
+                "Mobil uygulama erişim sorunu çözüldü, müşteri onayladı.",
+                "Fatura adresi güncellendi, yeni merkez ofis bilgileri kaydedildi.",
+                "Müşteri şikayeti çözüme kavuşturuldu, memnuniyet anketi iletildi.",
+                "Kurumsal hesap yöneticisi ile toplantı yapıldı."
+        };
+
+        Random random = new Random(55);
+        for (int i = 0; i < 20; i++) {
+            Customer customer = customers.get(i % customers.size());
+            User author = users.get((i % (users.size() - 1)) + 1);
+
+            LocalDateTime time = LocalDateTime.now().minusDays(random.nextInt(45)).minusHours(random.nextInt(12));
+
+            CustomerNote note = CustomerNote.builder()
+                    .customer(customer)
+                    .authorUser(author)
+                    .content(noteContents[i % noteContents.length])
+                    .createdAt(time)
+                    .updatedAt(time)
+                    .build();
+
+            customerNoteRepository.save(note);
+        }
+    }
+
+    private void seedTicketNotes(List<Ticket> tickets, List<User> users) {
+        if (ticketNoteRepository.count() >= 20) return;
+
+        String[] ticketNoteContents = {
+                "Müşteri ile telefon görüşmesi yapıldı. Log dosyaları e-posta ile istendi.",
+                "Yazılım geliştirme ekibine hata bildirimi (JIRA-4021) açıldı.",
+                "Veritabanı bağlantı zaman aşımı süresi artırıldı, gözlemleniyor.",
+                "SSL sertifikası yenilendi ve Nginx sunucusunda aktif edildi.",
+                "Kullanıcı yetki matrisi kontrol edildi, eksik rol tanımlandı.",
+                "Ödeme entegrasyonu test ortamında başarılı oldu.",
+                "Müşteri tarafındaki güvenlik duvarı kuralı güncellendi.",
+                "Sorunun çözümü için alternatif geçici çözüm sağlandı."
+        };
+
+        Random random = new Random(66);
+        for (int i = 0; i < 20; i++) {
+            Ticket ticket = tickets.get(i % tickets.size());
+            User author = users.get(i % users.size());
+
+            LocalDateTime time = LocalDateTime.now().minusDays(random.nextInt(30)).minusHours(random.nextInt(10));
+
+            TicketNote note = TicketNote.builder()
+                    .ticket(ticket)
+                    .authorUser(author)
+                    .content(ticketNoteContents[i % ticketNoteContents.length])
+                    .createdAt(time)
+                    .updatedAt(time)
+                    .build();
+
+            ticketNoteRepository.save(note);
+        }
+    }
+
+    private void seedTasks(List<Customer> customers, List<Ticket> tickets, List<User> users) {
+        if (crmTaskRepository.count() >= 25) return;
+
+        String[] taskTitles = {
+                "Müşteri ile sözleşme detaylarını görüş",
+                "Fatura hatasını incele ve finans ekibine bildir",
+                "CRM entegrasyon ayarlarını kontrol et",
+                "Yeni kullanıcı yetkilendirme talebini tamamla",
+                "Haftalık destek raporunu hazırla",
+                "Geciken bilet için müşteriyle iletişime geç",
+                "Stok senkronizasyon servisini yeniden başlat",
+                "Mobil bildirim altyapısını test et",
+                "VIP müşteri için özel destek planı hazırla",
+                "Kullanıcı eğitim dokümanını güncelle"
+        };
+
+        TaskPriority[] priorities = {TaskPriority.LOW, TaskPriority.MEDIUM, TaskPriority.HIGH, TaskPriority.CRITICAL};
+        TaskStatus[] statuses = {TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.COMPLETED, TaskStatus.CANCELLED, TaskStatus.TODO, TaskStatus.IN_PROGRESS};
+
+        Random random = new Random(99);
+
+        for (int i = 0; i < 25; i++) {
+            Customer customer = (i % 2 == 0) ? customers.get(i % customers.size()) : null;
+            Ticket ticket = (i % 3 == 0) ? tickets.get(i % tickets.size()) : null;
+
+            User assignedUser = users.get(i % users.size());
+            User createdByUser = users.get((i + 1) % users.size());
+
+            TaskPriority priority = priorities[i % priorities.length];
+            TaskStatus status = statuses[i % statuses.length];
+
+            LocalDateTime dueDate;
+            if (i % 4 == 0) {
+                dueDate = LocalDateTime.now().withHour(17).withMinute(0);
+            } else if (i % 4 == 1) {
+                dueDate = LocalDateTime.now().minusDays(i % 5 + 1);
+            } else {
+                dueDate = LocalDateTime.now().plusDays(i % 10 + 2);
+            }
+
+            LocalDateTime createdAt = LocalDateTime.now().minusDays(random.nextInt(20) + 1);
+
+            CrmTask task = CrmTask.builder()
+                    .title(taskTitles[i % taskTitles.length] + " #" + (i + 1))
+                    .description("Görevin detaylı açıklaması ve operasyonel adımları buradadır.")
+                    .customer(customer)
+                    .ticket(ticket)
+                    .assignedUser(assignedUser)
+                    .createdByUser(createdByUser)
+                    .dueDate(dueDate)
+                    .priority(priority)
+                    .status(status)
+                    .createdAt(createdAt)
+                    .updatedAt(createdAt)
+                    .completedAt(status == TaskStatus.COMPLETED ? createdAt.plusHours(12) : null)
+                    .build();
+
+            crmTaskRepository.save(task);
+        }
+    }
+
+    private void seedNotifications(List<User> users, List<Ticket> tickets) {
+        if (notificationRepository.count() >= 10) return;
+
+        for (int i = 0; i < 12; i++) {
+            User recipient = users.get(i % users.size());
+            Ticket ticket = tickets.get(i % tickets.size());
+
+            boolean isRead = (i % 2 == 0);
+
+            Notification notification = Notification.builder()
+                    .user(recipient)
+                    .title(i % 2 == 0 ? "Yeni Destek Talebi Atandı" : "Görev Son Tarihi Yaklaşıyor")
+                    .message(i % 2 == 0 ? ticket.getTicketNumber() + " numaralı destek talebi size atandı." : "Size atanan operasyonel görevin son günü bugün.")
+                    .read(isRead)
+                    .targetUrl(i % 2 == 0 ? "/tickets/" + ticket.getId() : "/tasks")
+                    .createdAt(LocalDateTime.now().minusHours(i * 3 + 1))
+                    .build();
+
+            notificationRepository.save(notification);
         }
     }
 }

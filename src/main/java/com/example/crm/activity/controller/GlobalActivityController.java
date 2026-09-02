@@ -30,4 +30,9 @@ public class GlobalActivityController {
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         return ResponseEntity.ok(activityService.getAllActivities(pageable));
     }
+
+    @GetMapping("/ticket/{ticketId}")
+    public ResponseEntity<java.util.List<ActivityResponse>> getTicketActivities(@org.springframework.web.bind.annotation.PathVariable Long ticketId) {
+        return ResponseEntity.ok(activityService.getTicketActivities(ticketId));
+    }
 }

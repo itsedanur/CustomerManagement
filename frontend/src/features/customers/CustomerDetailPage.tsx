@@ -20,6 +20,7 @@ import {
 } from '../../components/ui/dialog';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
+import { Badge } from '../../components/ui/badge';
 import { StatusBadge } from '../../components/ui/status-badge';
 import { PriorityBadge } from '../../components/ui/priority-badge';
 import { UserAvatar } from '../../components/ui/user-avatar';
@@ -46,6 +47,11 @@ import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { toast } from 'sonner';
 
+import { customerNoteApi } from '../../services/customerNote';
+import { taskApi } from '../../services/task';
+import { Textarea } from '../../components/ui/textarea';
+import { MessageSquare, CheckSquare } from 'lucide-react';
+
 export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>();
   const customerId = Number(id);
@@ -56,6 +62,9 @@ export default function CustomerDetailPage() {
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
   const [deleteAddressId, setDeleteAddressId] = useState<number | null>(null);
+
+  // Customer Note Form State
+  const [newNoteContent, setNewNoteContent] = useState('');
 
   // Address Form State
   const [addressForm, setAddressForm] = useState({
@@ -97,6 +106,39 @@ export default function CustomerDetailPage() {
     queryKey: ['customerActivities', customerId],
     queryFn: () => activityApi.getByCustomer(customerId),
     enabled: !!customerId,
+  });
+
+  const { data: notes = [], isLoading: isNotesLoading } = useQuery({
+    queryKey: ['customerNotes', customerId],
+    queryFn: () => customerNoteApi.getByCustomerId(customerId),
+    enabled: !!customerId,
+  });
+
+  const { data: customerTasks = [], isLoading: isTasksLoading } = useQuery({
+    queryKey: ['customerTasks', customerId],
+    queryFn: () => taskApi.getByCustomerId(customerId),
+    enabled: !!customerId,
+  });
+
+  // Note Mutations
+  const createNoteMutation = useMutation({
+    mutationFn: (content: string) => customerNoteApi.create(customerId, content),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customerNotes', customerId] });
+      queryClient.invalidateQueries({ queryKey: ['customerActivities', customerId] });
+      setNewNoteContent('');
+      toast.success('Not eklendi');
+    },
+    onError: () => toast.error('Not eklenirken hata oluştu')
+  });
+
+  const deleteNoteMutation = useMutation({
+    mutationFn: (noteId: number) => customerNoteApi.delete(noteId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customerNotes', customerId] });
+      toast.success('Not silindi');
+    },
+    onError: () => toast.error('Not silinirken hata oluştu')
   });
 
   // Mutations
@@ -241,6 +283,8 @@ export default function CustomerDetailPage() {
       <Tabs defaultValue="overview" className="w-full">
         <TabsList className="bg-slate-100/80 p-1 border border-slate-200/80 rounded-lg">
           <TabsTrigger value="overview" className="text-xs font-medium">Genel Bilgiler</TabsTrigger>
+          <TabsTrigger value="notes" className="text-xs font-medium">Notlar ({notes.length})</TabsTrigger>
+          <TabsTrigger value="tasks" className="text-xs font-medium">Görevler ({customerTasks.length})</TabsTrigger>
           <TabsTrigger value="timeline" className="text-xs font-medium">Aktivite Zaman Çizelgesi</TabsTrigger>
           <TabsTrigger value="tickets" className="text-xs font-medium">Destek Talepleri ({tickets?.totalElements || 0})</TabsTrigger>
           <TabsTrigger value="addresses" className="text-xs font-medium">Adresler ({addresses?.length || 0})</TabsTrigger>
@@ -287,6 +331,109 @@ export default function CustomerDetailPage() {
                   <span>{customer.createdAt ? format(new Date(customer.createdAt), 'dd MMMM yyyy, HH:mm', { locale: tr }) : '-'}</span>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab Notes */}
+        <TabsContent value="notes" className="mt-4 space-y-4">
+          <Card className="border border-slate-200/80 shadow-xs bg-white">
+            <CardHeader className="p-4 border-b border-slate-100 bg-slate-50/40">
+              <CardTitle className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 text-indigo-600" /> Müşteri Özel Notları
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 space-y-4">
+              {/* Add Note Form */}
+              <div className="space-y-2 bg-slate-50/60 p-3 rounded-lg border border-slate-200/80">
+                <Label className="text-xs font-semibold text-slate-800">Yeni Not Ekle</Label>
+                <Textarea
+                  placeholder="Müşteri ile ilgili notunuzu girin..."
+                  value={newNoteContent}
+                  onChange={(e) => setNewNoteContent(e.target.value)}
+                  rows={3}
+                  className="text-xs bg-white"
+                />
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    onClick={() => newNoteContent.trim() && createNoteMutation.mutate(newNoteContent.trim())}
+                    disabled={!newNoteContent.trim() || createNoteMutation.isPending}
+                    className="h-8 text-xs bg-slate-900 text-white hover:bg-slate-800"
+                  >
+                    Notu Kaydet
+                  </Button>
+                </div>
+              </div>
+
+              {/* Notes List */}
+              {isNotesLoading ? (
+                <div className="text-center text-xs text-slate-400 py-4">Notlar yükleniyor...</div>
+              ) : notes.length === 0 ? (
+                <div className="text-center text-xs text-slate-500 py-6">
+                  Bu müşteriye henüz not eklenmemiş.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {notes.map((note) => (
+                    <div key={note.id} className="p-3.5 rounded-lg border border-slate-200/80 bg-white hover:border-slate-300 crm-transition relative">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2 text-xs">
+                        <div className="flex items-center gap-2">
+                          <UserAvatar name={note.authorName} size="sm" />
+                          <span className="font-bold text-slate-900">{note.authorName}</span>
+                          <span className="text-[11px] text-slate-400">• {format(new Date(note.createdAt), 'dd MMM yyyy, HH:mm', { locale: tr })}</span>
+                        </div>
+                        {(user?.role === 'ADMIN' || user?.role === 'MANAGER' || note.authorUserId === user?.id) && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => deleteNoteMutation.mutate(note.id)}
+                            className="h-6 w-6 text-slate-400 hover:text-rose-600"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">{note.content}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab Tasks */}
+        <TabsContent value="tasks" className="mt-4">
+          <Card className="border border-slate-200/80 shadow-xs bg-white">
+            <CardHeader className="p-4 border-b border-slate-100 bg-slate-50/40 flex flex-row items-center justify-between">
+              <CardTitle className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                <CheckSquare className="h-4 w-4 text-indigo-600" /> Müşterinin Görevleri
+              </CardTitle>
+              <Button size="sm" onClick={() => navigate('/tasks')} className="h-8 text-xs bg-slate-900 text-white hover:bg-slate-800 gap-1">
+                <Plus className="h-3.5 w-3.5" /> Görev Ekle
+              </Button>
+            </CardHeader>
+            <CardContent className="p-4">
+              {isTasksLoading ? (
+                <div className="text-center text-xs text-slate-400 py-4">Görevler yükleniyor...</div>
+              ) : customerTasks.length === 0 ? (
+                <div className="text-center text-xs text-slate-500 py-6">
+                  Bu müşteriye ait görev bulunmuyor.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {customerTasks.map((t) => (
+                    <div key={t.id} className="p-3 rounded-lg border border-slate-200/80 bg-slate-50/40 flex items-center justify-between text-xs">
+                      <div>
+                        <h5 className="font-bold text-slate-900">{t.title}</h5>
+                        <p className="text-[11px] text-slate-500 mt-0.5">Atanan: {t.assignedUserName} • Öncelik: {t.priority}</p>
+                      </div>
+                      <Badge variant="outline" className="text-[10px] font-medium">{t.status}</Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
