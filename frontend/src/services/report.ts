@@ -30,17 +30,17 @@ export interface RepresentativePerformance {
 
 export const reportApi = {
   getCustomerAnalytics: async (startDate?: string, endDate?: string): Promise<CustomerAnalytics> => {
-    const res = await api.get<CustomerAnalytics>('/reports/customer-analytics', { params: { startDate, endDate } });
+    const res = await api.get<CustomerAnalytics>('/api/reports/customer-analytics', { params: { startDate, endDate } });
     return res.data;
   },
 
   getTicketAnalytics: async (startDate?: string, endDate?: string): Promise<TicketAnalytics> => {
-    const res = await api.get<TicketAnalytics>('/reports/ticket-analytics', { params: { startDate, endDate } });
+    const res = await api.get<TicketAnalytics>('/api/reports/ticket-analytics', { params: { startDate, endDate } });
     return res.data;
   },
 
   getRepresentativePerformance: async (startDate?: string, endDate?: string): Promise<RepresentativePerformance[]> => {
-    const res = await api.get<RepresentativePerformance[]>('/reports/representative-performance', { params: { startDate, endDate } });
-    return res.data;
+    const res = await api.get<RepresentativePerformance[]>('/api/reports/representative-performance', { params: { startDate, endDate } });
+    return Array.isArray(res.data) ? res.data : [];
   },
 };

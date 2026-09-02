@@ -81,42 +81,42 @@ export default function ReportsPage() {
   });
 
   // Prepare chart data
-  const customerStatusData = customerAnalytics
+  const customerStatusData = customerAnalytics?.statusDistribution
     ? Object.entries(customerAnalytics.statusDistribution).map(([key, value]) => ({
         name: mapCustomerStatus(key).label,
         val: value,
       }))
     : [];
 
-  const customerTypeData = customerAnalytics
+  const customerTypeData = customerAnalytics?.typeDistribution
     ? Object.entries(customerAnalytics.typeDistribution).map(([key, value]) => ({
         name: mapCustomerType(key),
         val: value,
       }))
     : [];
 
-  const customerMonthlyData = customerAnalytics
+  const customerMonthlyData = customerAnalytics?.monthlyTrend
     ? Object.entries(customerAnalytics.monthlyTrend).map(([key, value]) => ({
         month: key,
         müşteriler: value,
       }))
     : [];
 
-  const ticketStatusData = ticketAnalytics
+  const ticketStatusData = ticketAnalytics?.statusDistribution
     ? Object.entries(ticketAnalytics.statusDistribution).map(([key, value]) => ({
         name: mapTicketStatus(key).label,
         val: value,
       }))
     : [];
 
-  const ticketPriorityData = ticketAnalytics
+  const ticketPriorityData = ticketAnalytics?.priorityDistribution
     ? Object.entries(ticketAnalytics.priorityDistribution).map(([key, value]) => ({
         name: mapTicketPriority(key).label,
         val: value,
       }))
     : [];
 
-  const ticketDailyData = ticketAnalytics
+  const ticketDailyData = ticketAnalytics?.dailyTrend
     ? Object.entries(ticketAnalytics.dailyTrend).map(([key, value]) => ({
         day: key,
         talepler: value,
@@ -367,7 +367,7 @@ export default function ReportsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {repPerformance.map((rep) => (
+                  {(Array.isArray(repPerformance) ? repPerformance : []).map((rep) => (
                     <TableRow key={rep.userId} className="hover:bg-slate-50/80 crm-transition text-xs">
                       <TableCell className="font-semibold text-slate-900">
                         <div className="flex items-center gap-2.5">
