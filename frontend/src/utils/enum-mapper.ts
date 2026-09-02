@@ -100,3 +100,9 @@ export function mapActionType(action: string) {
       return action;
   }
 }
+
+export function formatUserName(firstName?: string, lastName?: string): string {
+  if (!firstName && !lastName) return 'Kullanıcı';
+  if (firstName === 'System' && lastName === 'Admin') return 'Sistem Yöneticisi';
+  return `${firstName || ''} ${lastName || ''}`.trim();
+}

@@ -129,19 +129,19 @@ The project has a clear separation between the backend (Spring Boot) and the fro
 
 ## Running with Docker Compose
 
-You can boot up the entire stack with a single command. It will build the frontend and backend, provision a PostgreSQL container, and configure all network links.
+### 1. Development & Demo Mode (With Full Realistic Seed Data)
+To launch the full CRM system pre-populated with **45 customers, 30 tickets, 6 users, activity history, and audit logs**:
+```bash
+docker compose -f docker-compose.yml -f docker-compose.demo.yml up --build -d
+```
+Access the application at `http://localhost`.
 
-### Setup
-1. Copy the `.env.example` file to `.env`:
-   ```bash
-   cp .env.example .env
-   ```
-2. Adjust environment variables in `.env` (e.g., custom `POSTGRES_PASSWORD`, `JWT_SECRET`).
-3. Build and launch:
-   ```bash
-   docker compose up --build
-   ```
-4. Access the CRM application at `http://localhost`.
+### 2. Production Mode (Clean Setup Without Seed Data)
+To launch a clean production environment:
+```bash
+docker compose up --build -d
+```
+Access the application at `http://localhost`.
 
 ---
 

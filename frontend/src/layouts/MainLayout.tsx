@@ -16,6 +16,7 @@ import { Button } from '../components/ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from '../components/ui/sheet';
 import { NotificationBell } from '../components/ui/notification-bell';
 import { UserAvatar } from '../components/ui/user-avatar';
+import { formatUserName } from '../utils/enum-mapper';
 
 export default function MainLayout() {
   const { user, logout } = useAuthStore();
@@ -134,10 +135,10 @@ export default function MainLayout() {
           <NotificationBell />
           <div className="h-4 w-px bg-slate-200" />
           <div className="flex items-center gap-2.5 pl-1">
-            <UserAvatar name={`${user?.firstName || ''} ${user?.lastName || ''}`} size="sm" />
+            <UserAvatar name={formatUserName(user?.firstName, user?.lastName)} size="sm" />
             <div className="hidden sm:flex flex-col text-left">
               <span className="text-xs font-semibold text-slate-900 leading-none">
-                {user?.firstName} {user?.lastName}
+                {formatUserName(user?.firstName, user?.lastName)}
               </span>
               <span className="text-[10px] text-slate-500 font-medium mt-0.5">
                 {getRoleLabel(user?.role)}

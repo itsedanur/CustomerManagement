@@ -20,6 +20,7 @@ import { UserAvatar } from '../../components/ui/user-avatar';
 import { TableSkeleton } from '../../components/ui/skeletons';
 import { EmptyState } from '../../components/ui/empty-state';
 import { ConfirmDialog } from '../../components/ui/confirm-dialog';
+import { formatUserName } from '../../utils/enum-mapper';
 
 export default function UserManagementPage() {
   const { user: currentUser } = useAuthStore();
@@ -124,9 +125,9 @@ export default function UserManagementPage() {
                     <TableRow key={u.id} className="hover:bg-slate-50/80 crm-transition">
                       <TableCell className="font-semibold text-xs text-slate-900">
                         <div className="flex items-center gap-3">
-                          <UserAvatar name={`${u.firstName} ${u.lastName}`} size="sm" />
+                          <UserAvatar name={formatUserName(u.firstName, u.lastName)} size="sm" />
                           <div className="flex items-center gap-1.5">
-                            <span>{u.firstName} {u.lastName}</span>
+                            <span>{formatUserName(u.firstName, u.lastName)}</span>
                             {u.id === currentUser.id && (
                               <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-md border font-normal">(Siz)</span>
                             )}

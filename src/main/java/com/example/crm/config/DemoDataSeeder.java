@@ -24,6 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
@@ -37,6 +38,7 @@ import java.util.Random;
 
 @Component
 @Profile({"dev", "demo", "default"})
+@ConditionalOnProperty(name = "crm.demo-data.enabled", havingValue = "true", matchIfMissing = true)
 @RequiredArgsConstructor
 public class DemoDataSeeder implements ApplicationRunner {
 
@@ -53,30 +55,25 @@ public class DemoDataSeeder implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        if (customerRepository.count() > 5) {
-            logger.info("Database already contains demo dataset ({} customers). Skipping seeding.", customerRepository.count());
-            return;
-        }
+        logger.info("Checking Phase 13 realistic CRM demo dataset seeding status...");
 
-        logger.info("Seeding Phase 13 realistic CRM demo dataset...");
-
-        // 1. Seed Users (Representatives)
+        // 1. Seed Users (Representatives) idempotently
         List<User> users = seedUsers();
 
-        // 2. Seed 45 Customers
+        // 2. Seed 45 Customers idempotently
         List<Customer> customers = seedCustomers();
 
         // 3. Seed Addresses for Customers
         seedAddresses(customers);
 
-        // 4. Seed 30 Support Tickets
+        // 4. Seed 30 Support Tickets idempotently
         List<Ticket> tickets = seedTickets(customers, users);
 
-        // 5. Seed Activities & Audit Logs
+        // 5. Seed Activities & Audit Logs idempotently
         seedActivitiesAndAuditLogs(customers, tickets, users);
 
-        logger.info("Successfully seeded Phase 13 dataset: {} Users, {} Customers, {} Tickets.",
-                users.size(), customers.size(), tickets.size());
+        logger.info("DemoDataSeeder check completed. Total in DB: {} Users, {} Customers, {} Tickets.",
+                userRepository.count(), customerRepository.count(), ticketRepository.count());
     }
 
     private List<User> seedUsers() {
@@ -161,7 +158,6 @@ public class DemoDataSeeder implements ApplicationRunner {
             CustomerType type = isCorporate ? CustomerType.CORPORATE : CustomerType.INDIVIDUAL;
             String company = isCorporate ? corporateCompanies[(i / 3) % corporateCompanies.length] : fn + " " + ln + " Bireysel";
 
-            // Status Distribution: ~70% ACTIVE, ~20% INACTIVE, ~10% BLOCKED
             CustomerStatus status;
             if (i % 10 == 9) {
                 status = CustomerStatus.BLOCKED;
@@ -177,19 +173,22 @@ public class DemoDataSeeder implements ApplicationRunner {
             String email = fn.toLowerCase(Locale.ENGLISH) + "." + ln.toLowerCase(Locale.ENGLISH) + (i + 1) + "@example.com";
             String phone = "+90 5" + (30 + random.nextInt(6)) + " " + String.format("%03d %04d", random.nextInt(1000), random.nextInt(10000));
 
-            Customer customer = Customer.builder()
-                    .firstName(fn)
-                    .lastName(ln)
-                    .email(email)
-                    .phone(phone)
-                    .company(company)
-                    .customerType(type)
-                    .status(status)
-                    .createdAt(createdAt)
-                    .updatedAt(createdAt)
-                    .build();
-
-            customers.add(customerRepository.save(customer));
+            Customer customer = customerRepository.findByEmail(email).orElse(null);
+            if (customer == null) {
+                customer = Customer.builder()
+                        .firstName(fn)
+                        .lastName(ln)
+                        .email(email)
+                        .phone(phone)
+                        .company(company)
+                        .customerType(type)
+                        .status(status)
+                        .createdAt(createdAt)
+                        .updatedAt(createdAt)
+                        .build();
+                customer = customerRepository.save(customer);
+            }
+            customers.add(customer);
         }
 
         return customers;
@@ -202,6 +201,10 @@ public class DemoDataSeeder implements ApplicationRunner {
 
         for (int i = 0; i < customers.size(); i++) {
             Customer customer = customers.get(i);
+            if (!addressRepository.findAllByCustomer_Id(customer.getId()).isEmpty()) {
+                continue;
+            }
+
             int idx = i % cities.length;
 
             Address primary = Address.builder()
@@ -298,19 +301,22 @@ public class DemoDataSeeder implements ApplicationRunner {
 
             String ticketNumber = String.format("CRM-2026-%06d", i + 101);
 
-            Ticket ticket = Ticket.builder()
-                    .ticketNumber(ticketNumber)
-                    .subject(subjects[i % subjects.length])
-                    .description(subjects[i % subjects.length] + " ile ilgili destek talebi oluşturuldu. İnceleme başlatıldı.")
-                    .status(status)
-                    .priority(priority)
-                    .customer(customer)
-                    .assignedUser(assignedUser)
-                    .createdAt(createdAt)
-                    .updatedAt(updatedAt)
-                    .build();
-
-            tickets.add(ticketRepository.save(ticket));
+            Ticket ticket = ticketRepository.findByTicketNumber(ticketNumber).orElse(null);
+            if (ticket == null) {
+                ticket = Ticket.builder()
+                        .ticketNumber(ticketNumber)
+                        .subject(subjects[i % subjects.length])
+                        .description(subjects[i % subjects.length] + " ile ilgili destek talebi oluşturuldu. İnceleme başlatıldı.")
+                        .status(status)
+                        .priority(priority)
+                        .customer(customer)
+                        .assignedUser(assignedUser)
+                        .createdAt(createdAt)
+                        .updatedAt(updatedAt)
+                        .build();
+                ticket = ticketRepository.save(ticket);
+            }
+            tickets.add(ticket);
         }
 
         return tickets;
@@ -319,65 +325,68 @@ public class DemoDataSeeder implements ApplicationRunner {
     private void seedActivitiesAndAuditLogs(List<Customer> customers, List<Ticket> tickets, List<User> users) {
         Random random = new Random(77);
 
-        // Seed Activity Timeline Entries
-        for (int i = 0; i < 40; i++) {
-            Customer customer = customers.get(i % customers.size());
-            User user = users.get(i % users.size());
-            Ticket ticket = tickets.get(i % tickets.size());
+        if (activityRepository.count() < 30) {
+            for (int i = 0; i < 40; i++) {
+                Customer customer = customers.get(i % customers.size());
+                User user = users.get(i % users.size());
+                Ticket ticket = tickets.get(i % tickets.size());
 
-            ActivityType type;
-            String desc;
-            if (i % 4 == 0) {
-                type = ActivityType.TICKET_CREATED;
-                desc = "Destek talebi oluşturuldu: " + ticket.getTicketNumber();
-            } else if (i % 4 == 1) {
-                type = ActivityType.TICKET_ASSIGNED;
-                desc = ticket.getTicketNumber() + " talebi " + user.getFirstName() + " " + user.getLastName() + " kullanıcısına atandı";
-            } else if (i % 4 == 2) {
-                type = ActivityType.TICKET_STATUS_CHANGED;
-                desc = ticket.getTicketNumber() + " talebinin durumu güncellendi";
-            } else {
-                type = ActivityType.CUSTOMER_UPDATED;
-                desc = "Müşteri iletişim bilgileri doğrulandı";
+                ActivityType type;
+                String desc;
+                if (i % 4 == 0) {
+                    type = ActivityType.TICKET_CREATED;
+                    desc = "Destek talebi oluşturuldu: " + ticket.getTicketNumber();
+                } else if (i % 4 == 1) {
+                    type = ActivityType.TICKET_ASSIGNED;
+                    desc = ticket.getTicketNumber() + " talebi " + user.getFirstName() + " " + user.getLastName() + " kullanıcısına atandı";
+                } else if (i % 4 == 2) {
+                    type = ActivityType.TICKET_STATUS_CHANGED;
+                    desc = ticket.getTicketNumber() + " talebinin durumu güncellendi";
+                } else {
+                    type = ActivityType.CUSTOMER_UPDATED;
+                    desc = "Müşteri iletişim bilgileri doğrulandı";
+                }
+
+                LocalDateTime time = LocalDateTime.now().minusDays(random.nextInt(30)).minusHours(random.nextInt(12));
+
+                Activity activity = Activity.builder()
+                        .customer(customer)
+                        .performedBy(user)
+                        .type(type)
+                        .entityId(ticket.getId())
+                        .description(desc)
+                        .createdAt(time)
+                        .build();
+
+                activityRepository.save(activity);
             }
-
-            LocalDateTime time = LocalDateTime.now().minusDays(random.nextInt(30)).minusHours(random.nextInt(12));
-
-            Activity activity = Activity.builder()
-                    .customer(customer)
-                    .performedBy(user)
-                    .type(type)
-                    .entityId(ticket.getId())
-                    .description(desc)
-                    .createdAt(time)
-                    .build();
-
-            activityRepository.save(activity);
         }
 
-        // Seed System Audit Logs
-        String[] actions = {
-                "LOGIN", "CUSTOMER_CREATE", "CUSTOMER_UPDATE", "TICKET_CREATE",
-                "TICKET_ASSIGN", "TICKET_STATUS_CHANGE", "USER_ROLE_CHANGE"
-        };
+        if (auditLogRepository.count() < 30) {
+            String[] actions = {
+                    "LOGIN", "CUSTOMER_CREATE", "CUSTOMER_UPDATE", "TICKET_CREATE",
+                    "TICKET_ASSIGN", "TICKET_STATUS_CHANGE", "USER_ROLE_CHANGE"
+            };
 
-        for (int i = 0; i < 35; i++) {
-            User user = users.get(i % users.size());
-            String action = actions[i % actions.length];
+            for (int i = 0; i < 35; i++) {
+                User user = users.get(i % users.size());
+                String action = actions[i % actions.length];
 
-            LocalDateTime time = LocalDateTime.now().minusDays(random.nextInt(30)).minusHours(random.nextInt(10));
+                LocalDateTime time = LocalDateTime.now().minusDays(random.nextInt(30)).minusHours(random.nextInt(10));
 
-            AuditLog log = AuditLog.builder()
-                    .user(user)
-                    .action(action)
-                    .entityType(i % 2 == 0 ? "Customer" : "Ticket")
-                    .entityId(String.valueOf(i + 10))
-                    .ipAddress("192.168.1." + (10 + (i % 50)))
-                    .details("Sistem işlem kaydı #" + (i + 1000) + " - " + action)
-                    .createdAt(time)
-                    .build();
+                AuditLog log = AuditLog.builder()
+                        .user(user)
+                        .action(action)
+                        .entityType(i % 2 == 0 ? "Customer" : "Ticket")
+                        .entityId(String.valueOf(i + 10))
+                        .ipAddress("192.168.1." + (10 + (i % 50)))
+                        .details("Sistem işlem kaydı #" + (i + 1000) + " - " + action)
+                        .createdAt(time)
+                        .build();
 
-            auditLogRepository.save(log);
+                auditLogRepository.save(log);
+            }
         }
     }
 }
+

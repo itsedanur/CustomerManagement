@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 @Repository
 public interface CustomerRepository extends JpaRepository<Customer, Long>, JpaSpecificationExecutor<Customer> {
     boolean existsByEmail(String email);
+    java.util.Optional<Customer> findByEmail(String email);
     long countByStatus(CustomerStatus status);
     long countByCreatedAtAfter(LocalDateTime date);
 }

@@ -167,9 +167,9 @@ export default function AuditLogPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2.5">
-                          <UserAvatar name={log.user?.name || 'Sistem'} size="sm" />
+                          <UserAvatar name={log.user?.name === 'System Admin' ? 'Sistem Yöneticisi' : (log.user?.name || 'Sistem')} size="sm" />
                           <div className="flex flex-col">
-                            <span className="font-semibold text-slate-900">{log.user?.name || 'Sistem'}</span>
+                            <span className="font-semibold text-slate-900">{log.user?.name === 'System Admin' ? 'Sistem Yöneticisi' : (log.user?.name || 'Sistem')}</span>
                             <span className="text-[10px] text-slate-400">{log.user?.email || 'System'}</span>
                           </div>
                         </div>
