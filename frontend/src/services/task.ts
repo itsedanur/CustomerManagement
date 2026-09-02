@@ -54,7 +54,7 @@ export interface PageTaskResponse {
 
 export const taskApi = {
   getAll: async (params?: CrmTaskParams): Promise<PageTaskResponse> => {
-    const res = await api.get<PageTaskResponse>('/tasks', {
+    const res = await api.get<PageTaskResponse>('/api/tasks', {
       params: {
         ...params,
         status: params?.status === 'ALL' ? undefined : params?.status,
@@ -65,46 +65,46 @@ export const taskApi = {
   },
 
   getById: async (id: number): Promise<CrmTask> => {
-    const res = await api.get<CrmTask>(`/tasks/${id}`);
+    const res = await api.get<CrmTask>(`/api/tasks/${id}`);
     return res.data;
   },
 
   create: async (payload: CreateTaskPayload): Promise<CrmTask> => {
-    const res = await api.post<CrmTask>('/tasks', payload);
+    const res = await api.post<CrmTask>('/api/tasks', payload);
     return res.data;
   },
 
   update: async (id: number, payload: CreateTaskPayload): Promise<CrmTask> => {
-    const res = await api.put<CrmTask>(`/tasks/${id}`, payload);
+    const res = await api.put<CrmTask>(`/api/tasks/${id}`, payload);
     return res.data;
   },
 
   updateStatus: async (id: number, status: string): Promise<CrmTask> => {
-    const res = await api.patch<CrmTask>(`/tasks/${id}/status`, { status });
+    const res = await api.patch<CrmTask>(`/api/tasks/${id}/status`, { status });
     return res.data;
   },
 
   delete: async (id: number): Promise<void> => {
-    await api.delete(`/tasks/${id}`);
+    await api.delete(`/api/tasks/${id}`);
   },
 
   getMyDueToday: async (): Promise<CrmTask[]> => {
-    const res = await api.get<CrmTask[]>('/tasks/my-due-today');
-    return res.data;
+    const res = await api.get<CrmTask[]>('/api/tasks/my-due-today');
+    return Array.isArray(res.data) ? res.data : [];
   },
 
   getMyOverdue: async (): Promise<CrmTask[]> => {
-    const res = await api.get<CrmTask[]>('/tasks/my-overdue');
-    return res.data;
+    const res = await api.get<CrmTask[]>('/api/tasks/my-overdue');
+    return Array.isArray(res.data) ? res.data : [];
   },
 
   getByCustomerId: async (customerId: number): Promise<CrmTask[]> => {
-    const res = await api.get<CrmTask[]>(`/tasks/customer/${customerId}`);
-    return res.data;
+    const res = await api.get<CrmTask[]>(`/api/tasks/customer/${customerId}`);
+    return Array.isArray(res.data) ? res.data : [];
   },
 
   getByTicketId: async (ticketId: number): Promise<CrmTask[]> => {
-    const res = await api.get<CrmTask[]>(`/tasks/ticket/${ticketId}`);
-    return res.data;
+    const res = await api.get<CrmTask[]>(`/api/tasks/ticket/${ticketId}`);
+    return Array.isArray(res.data) ? res.data : [];
   },
 };
