@@ -13,7 +13,7 @@ public interface TicketService {
 
     TicketResponse createTicket(Long customerId, CreateTicketRequest request);
 
-    PageResponse<TicketResponse> getTickets(TicketStatus status, TicketPriority priority, Long customerId, Long assignedUserId, String ticketNumber, Pageable pageable);
+    PageResponse<TicketResponse> getTickets(TicketStatus status, TicketPriority priority, Long customerId, Long assignedUserId, String ticketNumber, String search, Pageable pageable);
 
     PageResponse<TicketResponse> getCustomerTickets(Long customerId, Pageable pageable);
 

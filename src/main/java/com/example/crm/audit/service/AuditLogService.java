@@ -8,5 +8,5 @@ import org.springframework.data.domain.Pageable;
 public interface AuditLogService {
     void log(String action, String entityType, String entityId, String details);
     void log(User user, String action, String entityType, String entityId, String details);
-    Page<AuditLogResponse> getAllLogs(Pageable pageable);
+    Page<AuditLogResponse> getAllLogs(String search, String action, Pageable pageable);
 }

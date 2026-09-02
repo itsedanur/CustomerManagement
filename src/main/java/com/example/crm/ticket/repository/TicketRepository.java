@@ -10,12 +10,16 @@ import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 public interface TicketRepository extends JpaRepository<Ticket, Long>, JpaSpecificationExecutor<Ticket> {
     Optional<Ticket> findByTicketNumber(String ticketNumber);
     long countByStatus(TicketStatus status);
     long countByPriority(TicketPriority priority);
+    long countByCreatedAtAfter(LocalDateTime date);
+    List<Ticket> findByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
 
     @Override
     @EntityGraph(attributePaths = {"customer", "assignedUser"})

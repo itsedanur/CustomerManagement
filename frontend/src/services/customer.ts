@@ -24,12 +24,14 @@ export interface PageResponse<T> {
 }
 
 export const customerApi = {
-  getAll: async (page = 0, size = 10, search = ''): Promise<PageResponse<Customer>> => {
+  getAll: async (page = 0, size = 10, search = '', status?: string, customerType?: string): Promise<PageResponse<Customer>> => {
     const params = new URLSearchParams({
       page: page.toString(),
       size: size.toString(),
     });
     if (search) params.append('search', search);
+    if (status && status !== 'ALL') params.append('status', status);
+    if (customerType && customerType !== 'ALL') params.append('customerType', customerType);
     
     const response = await api.get(`/api/customers?${params.toString()}`);
     return response.data;

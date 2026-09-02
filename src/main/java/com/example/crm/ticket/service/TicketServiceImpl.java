@@ -76,12 +76,13 @@ public class TicketServiceImpl implements TicketService {
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<TicketResponse> getTickets(TicketStatus status, TicketPriority priority, Long customerId, Long assignedUserId, String ticketNumber, Pageable pageable) {
+    public PageResponse<TicketResponse> getTickets(TicketStatus status, TicketPriority priority, Long customerId, Long assignedUserId, String ticketNumber, String search, Pageable pageable) {
         Specification<Ticket> spec = Specification.where(TicketSpecification.hasStatus(status))
                 .and(TicketSpecification.hasPriority(priority))
                 .and(TicketSpecification.hasCustomerId(customerId))
                 .and(TicketSpecification.hasAssignedUserId(assignedUserId))
-                .and(TicketSpecification.hasTicketNumber(ticketNumber));
+                .and(TicketSpecification.hasTicketNumber(ticketNumber))
+                .and(TicketSpecification.hasSearch(search));
 
         Page<Ticket> ticketPage = ticketRepository.findAll(spec, pageable);
         return PageResponse.of(ticketPage.map(ticketMapper::toResponse));

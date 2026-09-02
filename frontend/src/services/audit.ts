@@ -17,8 +17,11 @@ export interface AuditLog {
 }
 
 export const auditApi = {
-  getAll: async (page = 0, size = 20): Promise<PageResponse<AuditLog>> => {
-    const response = await api.get(`/api/audit-logs?page=${page}&size=${size}`);
+  getAll: async (page = 0, size = 20, search?: string, action?: string): Promise<PageResponse<AuditLog>> => {
+    let url = `/api/audit-logs?page=${page}&size=${size}`;
+    if (search) url += `&search=${encodeURIComponent(search)}`;
+    if (action && action !== 'ALL') url += `&action=${encodeURIComponent(action)}`;
+    const response = await api.get(url);
     return response.data;
   },
 };

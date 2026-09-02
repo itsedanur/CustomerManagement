@@ -26,4 +26,19 @@ public class TicketSpecification {
     public static Specification<Ticket> hasTicketNumber(String ticketNumber) {
         return (root, query, cb) -> ticketNumber == null || ticketNumber.isBlank() ? null : cb.equal(root.get("ticketNumber"), ticketNumber);
     }
+
+    public static Specification<Ticket> hasSearch(String search) {
+        return (root, query, cb) -> {
+            if (search == null || search.isBlank()) {
+                return null;
+            }
+            String likePattern = "%" + search.trim().toLowerCase() + "%";
+            return cb.or(
+                    cb.like(cb.lower(root.get("ticketNumber")), likePattern),
+                    cb.like(cb.lower(root.get("subject")), likePattern),
+                    cb.like(cb.lower(root.get("customer").get("firstName")), likePattern),
+                    cb.like(cb.lower(root.get("customer").get("lastName")), likePattern)
+            );
+        };
+    }
 }

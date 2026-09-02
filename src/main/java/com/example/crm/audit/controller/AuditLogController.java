@@ -22,8 +22,10 @@ public class AuditLogController {
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Page<AuditLogResponse>> getAuditLogs(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String action,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ResponseEntity.ok(auditLogService.getAllLogs(PageRequest.of(page, size)));
+        return ResponseEntity.ok(auditLogService.getAllLogs(search, action, PageRequest.of(page, size)));
     }
 }

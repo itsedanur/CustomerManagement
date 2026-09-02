@@ -4,6 +4,8 @@ import com.example.crm.common.dto.PageResponse;
 import com.example.crm.customer.dto.CreateCustomerRequest;
 import com.example.crm.customer.dto.CustomerResponse;
 import com.example.crm.customer.dto.UpdateCustomerRequest;
+import com.example.crm.customer.entity.CustomerStatus;
+import com.example.crm.customer.entity.CustomerType;
 import com.example.crm.customer.service.CustomerService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -34,8 +36,10 @@ public class CustomerController {
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'AGENT')")
     public ResponseEntity<PageResponse<CustomerResponse>> getAllCustomers(
             @RequestParam(required = false) String search,
+            @RequestParam(required = false) CustomerStatus status,
+            @RequestParam(required = false) CustomerType customerType,
             @PageableDefault(sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(customerService.getAllCustomers(search, pageable));
+        return ResponseEntity.ok(customerService.getAllCustomers(search, status, customerType, pageable));
     }
 
     @GetMapping("/{id}")

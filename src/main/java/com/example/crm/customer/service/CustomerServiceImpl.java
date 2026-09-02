@@ -5,6 +5,8 @@ import com.example.crm.customer.dto.CreateCustomerRequest;
 import com.example.crm.customer.dto.CustomerResponse;
 import com.example.crm.customer.dto.UpdateCustomerRequest;
 import com.example.crm.customer.entity.Customer;
+import com.example.crm.customer.entity.CustomerStatus;
+import com.example.crm.customer.entity.CustomerType;
 import com.example.crm.common.exception.CustomerNotFoundException;
 import com.example.crm.common.exception.EmailAlreadyExistsException;
 import com.example.crm.customer.mapper.CustomerMapper;
@@ -32,16 +34,28 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<CustomerResponse> getAllCustomers(String search, Pageable pageable) {
-        Specification<Customer> spec = Specification.where((root, query, cb) -> cb.conjunction());
+    public PageResponse<CustomerResponse> getAllCustomers(String search, CustomerStatus status, CustomerType customerType, Pageable pageable) {
+        Specification<Customer> spec = (root, query, cb) -> cb.conjunction();
+
         if (search != null && !search.trim().isEmpty()) {
             String likePattern = "%" + search.trim().toLowerCase() + "%";
-            spec = (root, query, cb) -> cb.or(
+            Specification<Customer> searchSpec = (root, query, cb) -> cb.or(
                     cb.like(cb.lower(root.get("firstName")), likePattern),
                     cb.like(cb.lower(root.get("lastName")), likePattern),
                     cb.like(cb.lower(root.get("email")), likePattern),
                     cb.like(cb.lower(root.get("company")), likePattern)
             );
+            spec = spec.and(searchSpec);
+        }
+
+        if (status != null) {
+            Specification<Customer> statusSpec = (root, query, cb) -> cb.equal(root.get("status"), status);
+            spec = spec.and(statusSpec);
+        }
+
+        if (customerType != null) {
+            Specification<Customer> typeSpec = (root, query, cb) -> cb.equal(root.get("customerType"), customerType);
+            spec = spec.and(typeSpec);
         }
 
         Page<Customer> customerPage = customerRepository.findAll(spec, pageable);

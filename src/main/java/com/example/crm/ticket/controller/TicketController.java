@@ -42,8 +42,9 @@ public class TicketController {
             @RequestParam(required = false) Long customerId,
             @RequestParam(required = false) Long assignedUserId,
             @RequestParam(required = false) String ticketNumber,
+            @RequestParam(required = false) String search,
             @PageableDefault(sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(ticketService.getTickets(status, priority, customerId, assignedUserId, ticketNumber, pageable));
+        return ResponseEntity.ok(ticketService.getTickets(status, priority, customerId, assignedUserId, ticketNumber, search, pageable));
     }
 
     @GetMapping("/customers/{customerId}/tickets")

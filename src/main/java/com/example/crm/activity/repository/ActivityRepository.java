@@ -12,9 +12,12 @@ import java.util.List;
 @Repository
 public interface ActivityRepository extends JpaRepository<Activity, Long> {
     
-    @EntityGraph(attributePaths = {"user"})
+    @EntityGraph(attributePaths = {"performedBy"})
     List<Activity> findByCustomerIdOrderByCreatedAtDesc(Long customerId);
     
-    @EntityGraph(attributePaths = {"user"})
+    @EntityGraph(attributePaths = {"performedBy"})
     Page<Activity> findByCustomerIdOrderByCreatedAtDesc(Long customerId, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"performedBy"})
+    List<Activity> findTop10ByOrderByCreatedAtDesc();
 }

@@ -15,7 +15,9 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
-import { Activity as ActivityIcon, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Input } from '../../components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+import { Activity as ActivityIcon, ChevronLeft, ChevronRight, Search, Filter, RotateCcw } from 'lucide-react';
 import { useAuthStore } from '../../app/store';
 import { Navigate } from 'react-router';
 import { UserAvatar } from '../../components/ui/user-avatar';
@@ -25,12 +27,20 @@ import { EmptyState } from '../../components/ui/empty-state';
 export default function AuditLogPage() {
   const { user } = useAuthStore();
   const [page, setPage] = useState(0);
+  const [search, setSearch] = useState('');
+  const [actionFilter, setActionFilter] = useState('ALL');
 
   const { data, isLoading } = useQuery({
-    queryKey: ['auditLogs', page],
-    queryFn: () => auditApi.getAll(page, 20),
+    queryKey: ['auditLogs', page, search, actionFilter],
+    queryFn: () => auditApi.getAll(page, 20, search, actionFilter),
     enabled: user?.role === 'ADMIN',
   });
+
+  const handleResetFilters = () => {
+    setSearch('');
+    setActionFilter('ALL');
+    setPage(0);
+  };
 
   if (user?.role !== 'ADMIN') {
     return <Navigate to="/" replace />;
@@ -68,6 +78,61 @@ export default function AuditLogPage() {
           <p className="crm-secondary-text mt-1">Sistem güvenliği, kullanıcı eylemleri ve yapısal değişikliklerin iz kaydı</p>
         </div>
       </div>
+
+      {/* Filter & Toolbar Bar */}
+      <Card className="border border-slate-200/80 shadow-xs bg-white">
+        <CardContent className="p-4">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-3">
+            <div className="flex flex-1 flex-col sm:flex-row items-center gap-3 w-full">
+              <div className="relative flex-1 w-full">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                <Input
+                  placeholder="Detay, varlık ID veya IP adresi ara..."
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPage(0);
+                  }}
+                  className="pl-9 h-9 text-xs"
+                />
+              </div>
+
+              {/* Action Filter */}
+              <div className="w-full sm:w-52">
+                <Select value={actionFilter} onValueChange={(val) => { setActionFilter(val || 'ALL'); setPage(0); }}>
+                  <SelectTrigger className="h-9 text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <Filter className="h-3.5 w-3.5 text-slate-400" />
+                      <SelectValue placeholder="İşlem Filtresi" />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Tüm İşlemler</SelectItem>
+                    <SelectItem value="LOGIN">GİRİŞ</SelectItem>
+                    <SelectItem value="CUSTOMER_CREATE">MÜŞTERİ EKLENDİ</SelectItem>
+                    <SelectItem value="CUSTOMER_UPDATE">MÜŞTERİ GÜNCELLEDİ</SelectItem>
+                    <SelectItem value="CUSTOMER_DELETE">MÜŞTERİ SİLİNDİ</SelectItem>
+                    <SelectItem value="TICKET_CREATE">TALEP OLUŞTURULDU</SelectItem>
+                    <SelectItem value="TICKET_ASSIGN">TALEP ATANDI</SelectItem>
+                    <SelectItem value="TICKET_STATUS_CHANGE">TALEP DURUM DEĞİŞTİ</SelectItem>
+                    <SelectItem value="USER_ROLE_CHANGE">KULLANICI ROL DEĞİŞTİ</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {(search || actionFilter !== 'ALL') && (
+                <Button variant="ghost" size="sm" onClick={handleResetFilters} className="h-9 text-xs gap-1 text-slate-600">
+                  <RotateCcw className="h-3.5 w-3.5" /> Sıfırla
+                </Button>
+              )}
+            </div>
+
+            <div className="text-xs text-slate-500 font-medium whitespace-nowrap">
+              Toplam <strong className="text-slate-900">{data?.totalElements || 0}</strong> Log Kaydı
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card className="border border-slate-200/80 shadow-xs bg-white">
         <CardHeader className="p-4 border-b border-slate-100 bg-slate-50/40">

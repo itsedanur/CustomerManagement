@@ -1,18 +1,12 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router';
-import { useForm, Controller } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { format } from 'date-fns';
-import { tr } from 'date-fns/locale';
-
 import { customerApi } from '../../services/customer';
-import { addressApi } from '../../services/address';
+import { addressApi, type Address } from '../../services/address';
 import { ticketApi } from '../../services/ticket';
-import { activityApi } from '../../services/activity';
+import { activityApi, type Activity } from '../../services/activity';
 import { useAuthStore } from '../../app/store';
 
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
@@ -26,580 +20,519 @@ import {
 } from '../../components/ui/dialog';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
-import { Plus, PlusCircle, Trash2, Ticket as TicketIcon, Building2, Mail, Phone, Edit, ArrowLeft, Clock, History, MapPin, UserCheck, Activity } from 'lucide-react';
-import { toast } from 'sonner';
 import { StatusBadge } from '../../components/ui/status-badge';
 import { PriorityBadge } from '../../components/ui/priority-badge';
 import { UserAvatar } from '../../components/ui/user-avatar';
 import { DetailSkeleton } from '../../components/ui/skeletons';
-import { EmptyState } from '../../components/ui/empty-state';
 import { ConfirmDialog } from '../../components/ui/confirm-dialog';
+import { mapCustomerType } from '../../utils/enum-mapper';
 
-// Address Schema
-const addressSchema = z.object({
-  title: z.string().min(1, 'Başlık zorunludur'),
-  addressType: z.enum(['HOME', 'WORK', 'BILLING', 'SHIPPING', 'OTHER']),
-  addressLine: z.string().min(1, 'Adres satırı zorunludur'),
-  city: z.string().min(1, 'Şehir zorunludur'),
-  district: z.string().min(1, 'İlçe zorunludur'),
-  postalCode: z.string().min(1, 'Posta kodu zorunludur'),
-  country: z.string().min(1, 'Ülke zorunludur'),
-});
-
-type AddressFormValues = z.infer<typeof addressSchema>;
-
-// Ticket Schema
-const ticketSchema = z.object({
-  subject: z.string().min(1, 'Konu zorunludur'),
-  description: z.string().min(1, 'Açıklama zorunludur'),
-  priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
-});
-
-type TicketFormValues = z.infer<typeof ticketSchema>;
+import {
+  Mail,
+  Phone,
+  Building2,
+  Calendar,
+  MapPin,
+  Plus,
+  Trash2,
+  Ticket as TicketIcon,
+  Activity as ActivityIcon,
+  ChevronLeft,
+  Clock,
+  CheckCircle2,
+  User
+} from 'lucide-react';
+import { format } from 'date-fns';
+import { tr } from 'date-fns/locale';
+import { toast } from 'sonner';
 
 export default function CustomerDetailPage() {
-  const { id } = useParams();
+  const { id } = useParams<{ id: string }>();
   const customerId = Number(id);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
-  
-  const [deleteAddressId, setDeleteAddressId] = useState<number | null>(null);
+
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
+  const [deleteAddressId, setDeleteAddressId] = useState<number | null>(null);
 
-  const canManage = user?.role === 'ADMIN' || user?.role === 'MANAGER';
-  const canDelete = user?.role === 'ADMIN';
-
-  // Address Form
-  const addressForm = useForm<AddressFormValues>({
-    resolver: zodResolver(addressSchema),
-    defaultValues: {
-      title: '',
-      addressType: 'WORK',
-      addressLine: '',
-      city: '',
-      district: '',
-      postalCode: '',
-      country: '',
-    },
+  // Address Form State
+  const [addressForm, setAddressForm] = useState({
+    title: '',
+    addressLine: '',
+    city: '',
+    district: '',
+    postalCode: '',
+    country: 'Türkiye',
+    addressType: 'WORK',
   });
 
-  // Ticket Form
-  const ticketForm = useForm<TicketFormValues>({
-    resolver: zodResolver(ticketSchema),
-    defaultValues: {
-      subject: '',
-      description: '',
-      priority: 'MEDIUM',
-    },
+  // Ticket Form State
+  const [ticketForm, setTicketForm] = useState({
+    subject: '',
+    description: '',
+    priority: 'MEDIUM',
   });
 
-  // Queries
-  const { data: customer, isLoading: isLoadingCustomer } = useQuery({
+  const { data: customer, isLoading: isCustomerLoading } = useQuery({
     queryKey: ['customer', customerId],
     queryFn: () => customerApi.getById(customerId),
+    enabled: !!customerId,
   });
 
-  const { data: addresses, isLoading: isLoadingAddresses } = useQuery({
-    queryKey: ['customerAddresses', customerId],
+  const { data: addresses, isLoading: isAddressesLoading } = useQuery({
+    queryKey: ['addresses', customerId],
     queryFn: () => addressApi.getByCustomer(customerId),
+    enabled: !!customerId,
   });
 
-  const { data: tickets, isLoading: isLoadingTickets } = useQuery({
+  const { data: tickets, isLoading: isTicketsLoading } = useQuery({
     queryKey: ['customerTickets', customerId],
-    queryFn: () => ticketApi.getByCustomer(customerId, 0, 50),
+    queryFn: () => ticketApi.getByCustomer(customerId),
+    enabled: !!customerId,
   });
 
-  const { data: activities, isLoading: isLoadingActivities } = useQuery({
+  const { data: activities, isLoading: isActivitiesLoading } = useQuery({
     queryKey: ['customerActivities', customerId],
     queryFn: () => activityApi.getByCustomer(customerId),
+    enabled: !!customerId,
   });
 
   // Mutations
   const createAddressMutation = useMutation({
-    mutationFn: (values: AddressFormValues) => addressApi.create(customerId, values),
+    mutationFn: (data: any) => addressApi.create(customerId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['customerAddresses', customerId] });
+      queryClient.invalidateQueries({ queryKey: ['addresses', customerId] });
       queryClient.invalidateQueries({ queryKey: ['customerActivities', customerId] });
       setIsAddressModalOpen(false);
-      addressForm.reset();
-      toast.success('Adres başarıyla eklendi.');
+      setAddressForm({ title: '', addressLine: '', city: '', district: '', postalCode: '', country: 'Türkiye', addressType: 'WORK' });
+      toast.success('Adres başarıyla eklendi');
     },
-    onError: (err: any) => {
-      toast.error(err?.response?.data?.message || 'Adres eklenirken bir hata oluştu.');
-    }
+    onError: () => toast.error('Adres eklenirken hata oluştu')
   });
 
   const deleteAddressMutation = useMutation({
     mutationFn: (addressId: number) => addressApi.delete(customerId, addressId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['customerAddresses', customerId] });
+      queryClient.invalidateQueries({ queryKey: ['addresses', customerId] });
       queryClient.invalidateQueries({ queryKey: ['customerActivities', customerId] });
       setDeleteAddressId(null);
-      toast.success('Adres başarıyla silindi.');
+      toast.success('Adres silindi');
     },
     onError: () => {
       setDeleteAddressId(null);
-      toast.error('Bu adres silinemez.');
+      toast.error('Adres silinirken hata oluştu');
     }
   });
 
   const createTicketMutation = useMutation({
-    mutationFn: (values: TicketFormValues) => ticketApi.create(customerId, values),
-    onSuccess: (newTicket) => {
+    mutationFn: (data: any) => ticketApi.create(customerId, data),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customerTickets', customerId] });
-      queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
       queryClient.invalidateQueries({ queryKey: ['customerActivities', customerId] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
       setIsTicketModalOpen(false);
-      ticketForm.reset();
-      toast.success('Destek talebi başarıyla oluşturuldu.');
-      navigate(`/tickets/${newTicket.id}`);
+      setTicketForm({ subject: '', description: '', priority: 'MEDIUM' });
+      toast.success('Destek talebi başarıyla oluşturuldu');
     },
-    onError: (err: any) => {
-      toast.error(err?.response?.data?.message || 'Destek talebi oluşturulurken bir hata oluştu.');
-    }
+    onError: () => toast.error('Destek talebi oluşturulurken hata oluştu')
   });
 
-  if (isLoadingCustomer) {
+  if (isCustomerLoading) {
     return <DetailSkeleton />;
   }
 
   if (!customer) {
     return (
-      <EmptyState
-        title="Müşteri bulunamadı"
-        description="Talep edilen müşteri sistemde kayıtlı değil veya silinmiş olabilir."
-        actionLabel="Müşterilere Dön"
-        onAction={() => navigate('/customers')}
-      />
+      <div className="p-8 text-center text-slate-500">
+        Müşteri bulunamadı.
+      </div>
     );
   }
 
-  const getCustomerTypeTr = (type: string) => {
-    switch (type) {
-      case 'INDIVIDUAL': return 'Bireysel';
-      case 'CORPORATE': return 'Kurumsal';
-      default: return type;
-    }
-  };
-
-  const getActivityTitle = (type: string) => {
-    switch(type) {
-      case 'CUSTOMER_CREATED': return 'Müşteri hesabı oluşturuldu';
-      case 'CUSTOMER_UPDATED': return 'Müşteri bilgileri güncellendi';
-      case 'ADDRESS_ADDED': return 'Yeni adres eklendi';
-      case 'ADDRESS_UPDATED': return 'Adres bilgisi güncellendi';
-      case 'ADDRESS_DELETED': return 'Adres silindi';
-      case 'TICKET_CREATED': return 'Yeni destek talebi oluşturuldu';
-      case 'TICKET_ASSIGNED': return 'Destek talebi atandı';
-      case 'TICKET_STARTED': return 'Destek talebi işleme alındı';
-      case 'TICKET_RESOLVED': return 'Destek talebi çözüldü';
-      case 'TICKET_REOPENED': return 'Destek talebi yeniden açıldı';
-      case 'TICKET_CLOSED': return 'Destek talebi kapatıldı';
-      case 'TICKET_PRIORITY_CHANGED': return 'Destek talebi önceliği değiştirildi';
-      case 'TICKET_STATUS_CHANGED': return 'Destek talebi durumu değiştirildi';
-      default: return type;
-    }
-  };
+  const openTicketsCount = tickets?.content?.filter(t => t.status === 'OPEN' || t.status === 'IN_PROGRESS').length || 0;
 
   return (
     <div className="space-y-6">
-      {/* Header & Navigation */}
+      {/* Header & Back Navigation */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200/80 pb-4">
         <div className="flex items-center gap-3">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => navigate('/customers')}
-            className="h-8 text-xs gap-1 text-slate-600"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" /> Müşterilere Dön
+          <Button variant="ghost" size="icon" onClick={() => navigate('/customers')} className="h-9 w-9 text-slate-600">
+            <ChevronLeft className="h-5 w-5" />
           </Button>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="crm-page-title">{customer.firstName} {customer.lastName}</h1>
               <StatusBadge status={customer.status} />
+              <span className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-medium border">
+                {mapCustomerType(customer.customerType)}
+              </span>
             </div>
-            <p className="crm-secondary-text mt-0.5">{customer.company ? `${customer.company} • ` : ''}{getCustomerTypeTr(customer.customerType)} Müşteri</p>
+            <p className="crm-secondary-text mt-1">{customer.company || 'Bireysel Müşteri'} • ID: #{customer.id}</p>
           </div>
         </div>
-
-        <div className="flex items-center gap-2">
-          {canManage && (
-            <Button variant="outline" size="sm" onClick={() => navigate(`/customers/${customer.id}/edit`)} className="h-8 text-xs gap-1.5">
-              <Edit className="h-3.5 w-3.5 text-slate-500" /> Düzenle
+        
+        {user?.role !== 'AGENT' && (
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigate(`/customers/${customer.id}/edit`)} className="h-9 text-xs">
+              Müşteriyi Düzenle
             </Button>
-          )}
-          {canManage && (
-            <Button size="sm" onClick={() => setIsTicketModalOpen(true)} className="bg-slate-900 text-white hover:bg-slate-800 h-8 text-xs gap-1.5">
-              <PlusCircle className="h-3.5 w-3.5" /> Destek Talebi Oluştur
+            <Button size="sm" onClick={() => setIsTicketModalOpen(true)} className="h-9 text-xs bg-slate-900 text-white hover:bg-slate-800 gap-1.5">
+              <Plus className="h-4 w-4" /> Talep Oluştur
             </Button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
-      {/* Main Detail Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Profile Card */}
-        <Card className="lg:col-span-1 border border-slate-200/80 shadow-xs bg-white h-fit">
-          <CardHeader className="border-b border-slate-100 pb-4">
-            <CardTitle className="text-sm font-semibold text-slate-900">Müşteri Profil Özeti</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-5 space-y-5">
-            <div className="flex flex-col items-center text-center pb-4 border-b border-slate-100">
-              <UserAvatar name={`${customer.firstName} ${customer.lastName}`} size="lg" className="mb-3" />
-              <h2 className="text-base font-bold text-slate-900">{customer.firstName} {customer.lastName}</h2>
-              {customer.company && <p className="text-xs text-slate-500 font-medium mt-0.5">{customer.company}</p>}
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-500 flex items-center gap-2">
-                  <Mail className="h-3.5 w-3.5 text-slate-400" /> E-posta:
-                </span>
-                <span className="font-medium text-slate-900 truncate max-w-[180px]">{customer.email}</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-500 flex items-center gap-2">
-                  <Phone className="h-3.5 w-3.5 text-slate-400" /> Telefon:
-                </span>
-                <span className="font-medium text-slate-900">{customer.phone}</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-500 flex items-center gap-2">
-                  <UserCheck className="h-3.5 w-3.5 text-slate-400" /> Tip:
-                </span>
-                <span className="font-medium text-slate-900">{getCustomerTypeTr(customer.customerType)}</span>
-              </div>
-            </div>
-            
-            <div className="pt-3 border-t border-slate-100 text-[11px] text-slate-400 space-y-1">
-              <div className="flex justify-between">
-                <span>Oluşturulma:</span>
-                <span>{format(new Date(customer.createdAt), 'dd MMM yyyy, HH:mm', { locale: tr })}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Son Güncelleme:</span>
-                <span>{format(new Date(customer.updatedAt), 'dd MMM yyyy, HH:mm', { locale: tr })}</span>
-              </div>
+      {/* CRM 360 Customer Overview Header Banner */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="border border-slate-200/80 shadow-xs bg-white">
+          <CardContent className="p-4 flex items-center gap-3">
+            <UserAvatar name={`${customer.firstName} ${customer.lastName}`} size="lg" />
+            <div>
+              <p className="text-[11px] font-semibold text-slate-400 uppercase">Müşteri Profili</p>
+              <h4 className="text-sm font-bold text-slate-900">{customer.firstName} {customer.lastName}</h4>
+              <p className="text-xs text-slate-500">{customer.company}</p>
             </div>
           </CardContent>
         </Card>
 
-        {/* Right Section Tabs */}
-        <div className="lg:col-span-2">
-          <Tabs defaultValue="activities" className="w-full">
-            <TabsList className="w-full grid grid-cols-3 bg-slate-100 p-1 rounded-xl">
-              <TabsTrigger value="activities" className="text-xs font-medium gap-1.5">
-                <Activity className="h-3.5 w-3.5" /> Aktivite Zaman Çizelgesi
-              </TabsTrigger>
-              <TabsTrigger value="tickets" className="text-xs font-medium gap-1.5">
-                <TicketIcon className="h-3.5 w-3.5" /> Destek Talepleri
-              </TabsTrigger>
-              <TabsTrigger value="addresses" className="text-xs font-medium gap-1.5">
-                <MapPin className="h-3.5 w-3.5" /> Adresler
-              </TabsTrigger>
-            </TabsList>
-            
-            {/* Timeline Tab */}
-            <TabsContent value="activities" className="mt-4">
-              <Card className="border border-slate-200/80 shadow-xs bg-white">
-                <CardHeader className="border-b border-slate-100 py-3.5">
-                  <CardTitle className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-                    <History className="h-4 w-4 text-slate-500" /> Aktivite Tarihçesi
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-6">
-                  {isLoadingActivities ? (
-                    <div className="text-center py-4 text-slate-500 text-xs">Aktiviteler yükleniyor...</div>
-                  ) : activities?.length === 0 ? (
-                    <EmptyState title="Henüz aktivite bulunmuyor" description="Bu müşteri için kaydedilmiş işlem tarihçesi mevcut değil." />
-                  ) : (
-                    <div className="relative border-l border-slate-200 ml-3 space-y-6">
-                      {activities?.map((act) => (
-                        <div key={act.id} className="relative pl-6">
-                          <span className="absolute -left-[5px] top-1 h-2.5 w-2.5 rounded-full bg-slate-900 ring-4 ring-white" />
-                          <div className="space-y-1">
-                            <span className="text-xs font-semibold text-slate-900 block">
-                              {getActivityTitle(act.type)}
-                            </span>
-                            <p className="text-xs text-slate-600">{act.description}</p>
-                            <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-1">
-                              <Clock className="h-3 w-3" />
-                              <span>{format(new Date(act.createdAt), 'dd MMMM yyyy, HH:mm', { locale: tr })}</span>
-                              {act.performedBy && (
-                                <>
-                                  <span>•</span>
-                                  <span className="font-medium text-slate-600">{act.performedBy.name}</span>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-            
-            {/* Tickets Tab */}
-            <TabsContent value="tickets" className="mt-4">
-              <Card className="border border-slate-200/80 shadow-xs bg-white">
-                <CardHeader className="border-b border-slate-100 py-3.5 flex flex-row items-center justify-between">
-                  <CardTitle className="text-sm font-semibold text-slate-900">Destek Talepleri</CardTitle>
-                  {canManage && (
-                    <Button size="sm" onClick={() => setIsTicketModalOpen(true)} className="h-7 text-xs bg-slate-900 text-white">
-                      <Plus className="h-3.5 w-3.5 mr-1" /> Yeni Talep
-                    </Button>
-                  )}
-                </CardHeader>
-                <CardContent className="p-0">
-                  {isLoadingTickets ? (
-                    <div className="text-center py-4 text-slate-500 text-xs">Talepler yükleniyor...</div>
-                  ) : tickets?.content.length === 0 ? (
-                    <EmptyState
-                      title="Destek talebi bulunmuyor"
-                      description="Bu müşteriye ait aktif veya geçmiş destek talebi oluşturulmamış."
-                      actionLabel={canManage ? "Talep Oluştur" : undefined}
-                      onAction={canManage ? () => setIsTicketModalOpen(true) : undefined}
-                    />
-                  ) : (
-                    <div className="divide-y divide-slate-100">
-                      {tickets?.content.map((ticket) => (
-                        <div 
-                           key={ticket.id} 
-                           onClick={() => navigate(`/tickets/${ticket.id}`)}
-                           className="flex items-center justify-between p-4 hover:bg-slate-50/80 crm-transition cursor-pointer"
-                        >
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-xs text-slate-900">{ticket.ticketNumber}</span>
-                              <PriorityBadge priority={ticket.priority} />
-                            </div>
-                            <h4 className="text-xs font-medium text-slate-800">{ticket.subject}</h4>
-                            <span className="text-[11px] text-slate-400 block">
-                              Oluşturulma: {format(new Date(ticket.createdAt), 'dd MMM yyyy', { locale: tr })}
-                            </span>
-                          </div>
-                          <StatusBadge status={ticket.status} />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
+        <Card className="border border-slate-200/80 shadow-xs bg-white">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-semibold text-slate-400 uppercase">Toplam Talep</p>
+              <h4 className="text-xl font-bold text-slate-900 mt-0.5">{tickets?.totalElements || 0}</h4>
+            </div>
+            <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-lg">
+              <TicketIcon className="h-4 w-4" />
+            </div>
+          </CardContent>
+        </Card>
 
-            {/* Addresses Tab */}
-            <TabsContent value="addresses" className="mt-4">
-              <Card className="border border-slate-200/80 shadow-xs bg-white">
-                <CardHeader className="border-b border-slate-100 py-3.5 flex flex-row items-center justify-between">
-                  <CardTitle className="text-sm font-semibold text-slate-900">Kayıtlı Adresler</CardTitle>
-                  {canManage && (
-                    <Button size="sm" onClick={() => setIsAddressModalOpen(true)} className="h-7 text-xs bg-slate-900 text-white">
-                      <Plus className="h-3.5 w-3.5 mr-1" /> Yeni Adres
-                    </Button>
-                  )}
-                </CardHeader>
-                <CardContent className="p-4">
-                  {isLoadingAddresses ? (
-                    <div className="text-center py-4 text-slate-500 text-xs">Adresler yükleniyor...</div>
-                  ) : addresses?.length === 0 ? (
-                    <EmptyState
-                      title="Kayıtlı adres bulunmuyor"
-                      description="Müşteri için henüz adres tanımı yapılmamış."
-                      actionLabel={canManage ? "Adres Ekle" : undefined}
-                      onAction={canManage ? () => setIsAddressModalOpen(true) : undefined}
-                    />
-                  ) : (
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {addresses?.map(address => (
-                        <div key={address.id} className="border border-slate-200 rounded-xl p-4 relative group hover:border-slate-300 crm-transition bg-white">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2 font-semibold text-xs text-slate-900">
-                              <Building2 className="h-3.5 w-3.5 text-slate-400" />
-                              {address.title}
-                            </div>
-                            <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 bg-slate-100 rounded-md text-slate-600 border border-slate-200">
-                              {address.addressType === 'WORK' ? 'İŞ' : 
-                               address.addressType === 'HOME' ? 'EV' : 
-                               address.addressType === 'BILLING' ? 'FATURA' :
-                               address.addressType === 'SHIPPING' ? 'TESLİMAT' : 'DİĞER'}
-                            </span>
-                          </div>
-                          <div className="text-xs text-slate-600 space-y-1 mt-2">
-                            <p className="font-medium text-slate-800">{address.addressLine}</p>
-                            <p>{address.district} / {address.city}</p>
-                            <p className="text-slate-400">{address.postalCode} - {address.country}</p>
-                          </div>
-                          
-                          {canDelete && (
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 h-7 w-8 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
-                              onClick={() => setDeleteAddressId(address.id)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
-        </div>
+        <Card className="border border-slate-200/80 shadow-xs bg-white">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-semibold text-slate-400 uppercase">Açık Talepler</p>
+              <h4 className="text-xl font-bold text-amber-600 mt-0.5">{openTicketsCount}</h4>
+            </div>
+            <div className="p-2.5 bg-amber-50 text-amber-600 rounded-lg">
+              <Clock className="h-4 w-4" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border border-slate-200/80 shadow-xs bg-white">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-semibold text-slate-400 uppercase">Kayıt Tarihi</p>
+              <h4 className="text-xs font-bold text-slate-900 mt-1">
+                {customer.createdAt ? format(new Date(customer.createdAt), 'dd MMM yyyy', { locale: tr }) : '-'}
+              </h4>
+            </div>
+            <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-lg">
+              <Calendar className="h-4 w-4" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Address Modal */}
+      {/* Tabs Layout */}
+      <Tabs defaultValue="overview" className="w-full">
+        <TabsList className="bg-slate-100/80 p-1 border border-slate-200/80 rounded-lg">
+          <TabsTrigger value="overview" className="text-xs font-medium">Genel Bilgiler</TabsTrigger>
+          <TabsTrigger value="timeline" className="text-xs font-medium">Aktivite Zaman Çizelgesi</TabsTrigger>
+          <TabsTrigger value="tickets" className="text-xs font-medium">Destek Talepleri ({tickets?.totalElements || 0})</TabsTrigger>
+          <TabsTrigger value="addresses" className="text-xs font-medium">Adresler ({addresses?.length || 0})</TabsTrigger>
+        </TabsList>
+
+        {/* Tab 1: Overview */}
+        <TabsContent value="overview" className="mt-4 space-y-4">
+          <Card className="border border-slate-200/80 shadow-xs bg-white">
+            <CardHeader className="p-4 border-b border-slate-100 bg-slate-50/40">
+              <CardTitle className="text-sm font-semibold text-slate-900">İletişim & Profil Bilgileri</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
+              <div className="space-y-3">
+                <div className="flex items-center gap-2.5 text-slate-700">
+                  <Mail className="h-4 w-4 text-slate-400" />
+                  <span className="font-semibold text-slate-900 w-24">E-posta:</span>
+                  <span>{customer.email}</span>
+                </div>
+                <div className="flex items-center gap-2.5 text-slate-700">
+                  <Phone className="h-4 w-4 text-slate-400" />
+                  <span className="font-semibold text-slate-900 w-24">Telefon:</span>
+                  <span>{customer.phone}</span>
+                </div>
+                <div className="flex items-center gap-2.5 text-slate-700">
+                  <Building2 className="h-4 w-4 text-slate-400" />
+                  <span className="font-semibold text-slate-900 w-24">Şirket:</span>
+                  <span>{customer.company}</span>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2.5 text-slate-700">
+                  <User className="h-4 w-4 text-slate-400" />
+                  <span className="font-semibold text-slate-900 w-24">Müşteri Tipi:</span>
+                  <span>{mapCustomerType(customer.customerType)}</span>
+                </div>
+                <div className="flex items-center gap-2.5 text-slate-700">
+                  <CheckCircle2 className="h-4 w-4 text-slate-400" />
+                  <span className="font-semibold text-slate-900 w-24">Durum:</span>
+                  <StatusBadge status={customer.status} />
+                </div>
+                <div className="flex items-center gap-2.5 text-slate-700">
+                  <Calendar className="h-4 w-4 text-slate-400" />
+                  <span className="font-semibold text-slate-900 w-24">Oluşturulma:</span>
+                  <span>{customer.createdAt ? format(new Date(customer.createdAt), 'dd MMMM yyyy, HH:mm', { locale: tr }) : '-'}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab 2: Activity Timeline */}
+        <TabsContent value="timeline" className="mt-4">
+          <Card className="border border-slate-200/80 shadow-xs bg-white">
+            <CardHeader className="p-4 border-b border-slate-100 bg-slate-50/40">
+              <CardTitle className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                <ActivityIcon className="h-4 w-4 text-indigo-600" /> Aktivite Zaman Çizelgesi
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              {isActivitiesLoading ? (
+                <div className="text-center text-xs text-slate-400">Yükleniyor...</div>
+              ) : !activities || activities.length === 0 ? (
+                <div className="text-center text-xs text-slate-500 py-6">
+                  Bu müşteriye ait henüz aktivite kaydı bulunmuyor.
+                </div>
+              ) : (
+                <div className="relative pl-6 border-l-2 border-slate-200 space-y-6">
+                  {activities.map((act: Activity) => (
+                    <div key={act.id} className="relative group">
+                      <div className="absolute -left-[31px] top-0.5 h-4 w-4 rounded-full bg-indigo-600 border-2 border-white shadow-xs" />
+                      <div className="bg-slate-50/60 p-3 rounded-lg border border-slate-100 hover:border-slate-200 crm-transition">
+                        <p className="text-xs font-semibold text-slate-900">{act.description}</p>
+                        <div className="flex items-center gap-3 mt-1.5 text-[11px] text-slate-500">
+                          <span className="flex items-center gap-1">
+                            <User className="h-3 w-3 text-slate-400" /> {act.performedBy?.name || 'Sistem'}
+                          </span>
+                          <span>•</span>
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3 text-slate-400" /> {format(new Date(act.createdAt), 'dd MMMM yyyy, HH:mm', { locale: tr })}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab 3: Tickets */}
+        <TabsContent value="tickets" className="mt-4">
+          <Card className="border border-slate-200/80 shadow-xs bg-white">
+            <CardHeader className="p-4 border-b border-slate-100 bg-slate-50/40 flex flex-row items-center justify-between">
+              <CardTitle className="text-sm font-semibold text-slate-900">Müşterinin Destek Talepleri</CardTitle>
+              {user?.role !== 'AGENT' && (
+                <Button size="sm" onClick={() => setIsTicketModalOpen(true)} className="h-8 text-xs bg-slate-900 text-white hover:bg-slate-800 gap-1">
+                  <Plus className="h-3.5 w-3.5" /> Yeni Talep
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent className="p-0">
+              {isTicketsLoading ? (
+                <div className="p-6 text-center text-xs text-slate-400">Talepler yükleniyor...</div>
+              ) : !tickets?.content || tickets.content.length === 0 ? (
+                <div className="p-8 text-center text-xs text-slate-500">
+                  Bu müşteriye ait henüz destek talebi bulunmuyor.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="crm-table-header border-b border-slate-100">
+                        <th className="p-3 pl-4">Talep NO</th>
+                        <th className="p-3">Konu</th>
+                        <th className="p-3">Durum</th>
+                        <th className="p-3">Öncelik</th>
+                        <th className="p-3">Oluşturulma</th>
+                        <th className="p-3 text-right pr-4">İşlem</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {tickets.content.map((t) => (
+                        <tr key={t.id} className="hover:bg-slate-50/80 crm-transition">
+                          <td className="p-3 pl-4 font-mono font-semibold text-slate-900">{t.ticketNumber}</td>
+                          <td className="p-3 font-medium text-slate-800">{t.subject}</td>
+                          <td className="p-3"><StatusBadge status={t.status} /></td>
+                          <td className="p-3"><PriorityBadge priority={t.priority} /></td>
+                          <td className="p-3 text-slate-500">{format(new Date(t.createdAt), 'dd MMM yyyy', { locale: tr })}</td>
+                          <td className="p-3 pr-4 text-right">
+                            <Button variant="outline" size="sm" onClick={() => navigate(`/tickets/${t.id}`)} className="h-7 text-[11px]">
+                              Detay
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab 4: Addresses */}
+        <TabsContent value="addresses" className="mt-4">
+          <Card className="border border-slate-200/80 shadow-xs bg-white">
+            <CardHeader className="p-4 border-b border-slate-100 bg-slate-50/40 flex flex-row items-center justify-between">
+              <CardTitle className="text-sm font-semibold text-slate-900">Müşteri Adresleri</CardTitle>
+              {user?.role !== 'AGENT' && (
+                <Button size="sm" onClick={() => setIsAddressModalOpen(true)} className="h-8 text-xs bg-slate-900 text-white hover:bg-slate-800 gap-1">
+                  <Plus className="h-3.5 w-3.5" /> Adres Ekle
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent className="p-4">
+              {isAddressesLoading ? (
+                <div className="text-center text-xs text-slate-400">Adresler yükleniyor...</div>
+              ) : !addresses || addresses.length === 0 ? (
+                <div className="text-center text-xs text-slate-500 py-6">
+                  Bu müşteriye kayıtlı adres bulunmamaktadır.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {addresses.map((addr: Address) => (
+                    <div key={addr.id} className="p-4 rounded-lg border border-slate-200/80 bg-slate-50/40 relative">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
+                          <MapPin className="h-3.5 w-3.5 text-indigo-600" /> {addr.title}
+                        </span>
+                        {user?.role === 'ADMIN' && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => setDeleteAddressId(addr.id)}
+                            className="h-7 w-7 text-slate-400 hover:text-rose-600"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-700">{addr.addressLine}</p>
+                      <p className="text-xs text-slate-500 mt-1 font-medium">{addr.district} / {addr.city} - {addr.postalCode}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* Add Address Dialog */}
       <Dialog open={isAddressModalOpen} onOpenChange={setIsAddressModalOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-base font-semibold">Yeni Adres Ekle</DialogTitle>
-            <DialogDescription className="text-xs">Müşteriye ait lokasyon veya fatura adresi bilgilerini girin.</DialogDescription>
+            <DialogDescription className="text-xs text-slate-500">Müşteriye yeni bir adres bilgisi tanımlayın.</DialogDescription>
           </DialogHeader>
-          <form onSubmit={addressForm.handleSubmit((values) => createAddressMutation.mutate(values))} className="space-y-3 pt-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Başlık (Örn. Merkez Ofis)</Label>
-                <Input {...addressForm.register('title')} className="h-8 text-xs" />
-                {addressForm.formState.errors.title && <p className="text-[11px] text-rose-500">{addressForm.formState.errors.title.message}</p>}
+          <div className="space-y-3 py-2 text-xs">
+            <div>
+              <Label className="text-xs">Adres Başlığı *</Label>
+              <Input
+                placeholder="Örn: Merkez Ofis, Depo"
+                value={addressForm.title}
+                onChange={(e) => setAddressForm({ ...addressForm, title: e.target.value })}
+                className="h-9 text-xs mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Adres Satırı *</Label>
+              <Input
+                placeholder="Sokak, Mahalle, Bina No"
+                value={addressForm.addressLine}
+                onChange={(e) => setAddressForm({ ...addressForm, addressLine: e.target.value })}
+                className="h-9 text-xs mt-1"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs">İl *</Label>
+                <Input
+                  placeholder="İstanbul"
+                  value={addressForm.city}
+                  onChange={(e) => setAddressForm({ ...addressForm, city: e.target.value })}
+                  className="h-9 text-xs mt-1"
+                />
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Tip</Label>
-                <Controller
-                  control={addressForm.control}
-                  name="addressType"
-                  render={({ field }) => (
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <SelectTrigger className="h-8 text-xs">
-                        <SelectValue placeholder="Tip seçin" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="WORK">İş</SelectItem>
-                        <SelectItem value="HOME">Ev</SelectItem>
-                        <SelectItem value="BILLING">Fatura</SelectItem>
-                        <SelectItem value="SHIPPING">Teslimat</SelectItem>
-                        <SelectItem value="OTHER">Diğer</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
+              <div>
+                <Label className="text-xs">İlçe *</Label>
+                <Input
+                  placeholder="Kadıköy"
+                  value={addressForm.district}
+                  onChange={(e) => setAddressForm({ ...addressForm, district: e.target.value })}
+                  className="h-9 text-xs mt-1"
                 />
               </div>
             </div>
-            
-            <div className="space-y-1">
-              <Label className="text-xs">Adres Satırı</Label>
-              <Input {...addressForm.register('addressLine')} className="h-8 text-xs" />
-              {addressForm.formState.errors.addressLine && <p className="text-[11px] text-rose-500">{addressForm.formState.errors.addressLine.message}</p>}
-            </div>
-            
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">İlçe</Label>
-                <Input {...addressForm.register('district')} className="h-8 text-xs" />
-                {addressForm.formState.errors.district && <p className="text-[11px] text-rose-500">{addressForm.formState.errors.district.message}</p>}
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Şehir</Label>
-                <Input {...addressForm.register('city')} className="h-8 text-xs" />
-                {addressForm.formState.errors.city && <p className="text-[11px] text-rose-500">{addressForm.formState.errors.city.message}</p>}
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Posta Kodu</Label>
-                <Input {...addressForm.register('postalCode')} className="h-8 text-xs" />
-                {addressForm.formState.errors.postalCode && <p className="text-[11px] text-rose-500">{addressForm.formState.errors.postalCode.message}</p>}
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Ülke</Label>
-                <Input {...addressForm.register('country')} className="h-8 text-xs" />
-                {addressForm.formState.errors.country && <p className="text-[11px] text-rose-500">{addressForm.formState.errors.country.message}</p>}
-              </div>
-            </div>
-
-            <DialogFooter className="pt-3">
-              <Button type="button" variant="outline" size="sm" onClick={() => setIsAddressModalOpen(false)}>İptal</Button>
-              <Button type="submit" size="sm" className="bg-slate-900 text-white" disabled={createAddressMutation.isPending}>
-                {createAddressMutation.isPending ? 'Kaydediliyor...' : 'Kaydet'}
-              </Button>
-            </DialogFooter>
-          </form>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setIsAddressModalOpen(false)}>İptal</Button>
+            <Button size="sm" onClick={() => createAddressMutation.mutate(addressForm)} disabled={createAddressMutation.isPending}>
+              Kaydet
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Ticket Modal */}
+      {/* Add Ticket Dialog */}
       <Dialog open={isTicketModalOpen} onOpenChange={setIsTicketModalOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-base font-semibold">Yeni Destek Talebi Oluştur</DialogTitle>
-            <DialogDescription className="text-xs">
-              Bu müşteri için yeni bir bildirim/destek talebi kaydı oluşturun.
-            </DialogDescription>
+            <DialogTitle className="text-base font-semibold">Yeni Destek Talepleri</DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">Müşteri için yeni destek bileti oluşturun.</DialogDescription>
           </DialogHeader>
-          <form onSubmit={ticketForm.handleSubmit((values) => createTicketMutation.mutate(values))} className="space-y-3 pt-2">
-            <div className="space-y-1">
-              <Label className="text-xs">Konu</Label>
-              <Input {...ticketForm.register('subject')} placeholder="Sorunun kısa tanımı" className="h-8 text-xs" />
-              {ticketForm.formState.errors.subject && <p className="text-[11px] text-rose-500">{ticketForm.formState.errors.subject.message}</p>}
-            </div>
-            
-            <div className="space-y-1">
-              <Label className="text-xs">Öncelik Seviyesi</Label>
-              <Controller
-                control={ticketForm.control}
-                name="priority"
-                render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="Öncelik seçin" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="LOW">Düşük</SelectItem>
-                      <SelectItem value="MEDIUM">Normal</SelectItem>
-                      <SelectItem value="HIGH">Yüksek</SelectItem>
-                      <SelectItem value="CRITICAL">Kritik</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
+          <div className="space-y-3 py-2 text-xs">
+            <div>
+              <Label className="text-xs">Konu *</Label>
+              <Input
+                placeholder="Sorun özeti..."
+                value={ticketForm.subject}
+                onChange={(e) => setTicketForm({ ...ticketForm, subject: e.target.value })}
+                className="h-9 text-xs mt-1"
               />
             </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs">Detaylı Açıklama</Label>
-              <textarea 
-                className="flex min-h-[90px] w-full rounded-md border border-slate-200 bg-transparent px-3 py-2 text-xs shadow-xs placeholder:text-slate-400 focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-slate-400" 
-                placeholder="Destek konusuna ait detaylar..."
-                {...ticketForm.register('description')}
+            <div>
+              <Label className="text-xs">Açıklama *</Label>
+              <Input
+                placeholder="Detaylı açıklama..."
+                value={ticketForm.description}
+                onChange={(e) => setTicketForm({ ...ticketForm, description: e.target.value })}
+                className="h-9 text-xs mt-1"
               />
-              {ticketForm.formState.errors.description && <p className="text-[11px] text-rose-500">{ticketForm.formState.errors.description.message}</p>}
             </div>
-
-            <DialogFooter className="pt-3">
-              <Button type="button" variant="outline" size="sm" onClick={() => setIsTicketModalOpen(false)}>İptal</Button>
-              <Button type="submit" size="sm" className="bg-slate-900 text-white" disabled={createTicketMutation.isPending}>
-                {createTicketMutation.isPending ? 'Oluşturuluyor...' : 'Talep Oluştur'}
-              </Button>
-            </DialogFooter>
-          </form>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setIsTicketModalOpen(false)}>İptal</Button>
+            <Button size="sm" onClick={() => createTicketMutation.mutate(ticketForm)} disabled={createTicketMutation.isPending}>
+              Talebi Oluştur
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Confirm Address Delete */}
+      {/* Confirm Address Deletion */}
       <ConfirmDialog
         open={deleteAddressId !== null}
         onOpenChange={(open) => !open && setDeleteAddressId(null)}
         title="Adresi Sil"
-        description="Bu adresi silmek istediğinize emin misiniz? İşlem kalıcı olarak silinecektir."
-        confirmText="Adresi Sil"
+        description="Bu adresi silmek istediğinizden emin misiniz?"
+        confirmText="Sil"
+        variant="destructive"
         onConfirm={() => deleteAddressId && deleteAddressMutation.mutate(deleteAddressId)}
         isLoading={deleteAddressMutation.isPending}
       />

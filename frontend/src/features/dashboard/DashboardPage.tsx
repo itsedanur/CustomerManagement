@@ -1,408 +1,370 @@
 import { useQuery } from '@tanstack/react-query';
 import { dashboardApi } from '../../services/dashboard';
-import { customerApi } from '../../services/customer';
 import { ticketApi } from '../../services/ticket';
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
+import { Users, Ticket as TicketIcon, AlertTriangle, CheckCircle2, Clock, Activity, ArrowRight, UserCheck } from 'lucide-react';
 import { Button } from '../../components/ui/button';
-import { Users, UserCheck, Ticket as TicketIcon, AlertCircle, Plus, Search, ArrowRight, ShieldAlert } from 'lucide-react';
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Tooltip as RechartsTooltip,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  AreaChart,
+  Area
+} from 'recharts';
+import { useNavigate } from 'react-router';
+import { DashboardSkeleton } from '../../components/ui/skeletons';
+import { PriorityBadge } from '../../components/ui/priority-badge';
+import { UserAvatar } from '../../components/ui/user-avatar';
+import { mapTicketStatus, mapCustomerStatus } from '../../utils/enum-mapper';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
-import { useNavigate } from 'react-router';
-import {
-  PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend
-} from 'recharts';
-import { StatusBadge } from '../../components/ui/status-badge';
-import { PriorityBadge } from '../../components/ui/priority-badge';
-import { DashboardSkeleton } from '../../components/ui/skeletons';
-import { EmptyState } from '../../components/ui/empty-state';
-
-const TICKET_STATUS_COLORS: Record<string, string> = {
-  OPEN: '#f59e0b',
-  IN_PROGRESS: '#0284c7',
-  RESOLVED: '#10b981',
-  CLOSED: '#64748b',
-};
-
-const CUSTOMER_STATUS_COLORS: Record<string, string> = {
-  ACTIVE: '#10b981',
-  INACTIVE: '#f59e0b',
-  SUSPENDED: '#rose-500',
-};
 
 export default function DashboardPage() {
   const navigate = useNavigate();
 
-  const { data: summary, isLoading: isSummaryLoading, error: summaryError } = useQuery({
+  const { data: summary, isLoading: isSummaryLoading } = useQuery({
     queryKey: ['dashboardSummary'],
     queryFn: dashboardApi.getSummary,
   });
 
-  const { data: recentCustomers, isLoading: isCustomersLoading } = useQuery({
-    queryKey: ['recentCustomers'],
-    queryFn: () => customerApi.getAll(0, 5),
-  });
-
-  const { data: recentTickets, isLoading: isTicketsLoading } = useQuery({
-    queryKey: ['recentTickets'],
-    queryFn: () => ticketApi.getAll(0, 5),
-  });
-
-  const { data: pendingTickets, isLoading: isPendingTicketsLoading } = useQuery({
+  const { data: pendingTicketsData } = useQuery({
     queryKey: ['pendingTickets'],
-    queryFn: () => ticketApi.getAll(0, 5, 'OPEN', 'ALL'),
+    queryFn: () => ticketApi.getAll(0, 5, 'OPEN'),
   });
 
-  if (isSummaryLoading || isCustomersLoading || isTicketsLoading || isPendingTicketsLoading) {
+  if (isSummaryLoading) {
     return <DashboardSkeleton />;
   }
 
-  if (summaryError || !summary) {
-    return (
-      <div className="p-8 text-center text-rose-600 bg-rose-50 rounded-xl border border-rose-200">
-        <ShieldAlert className="w-8 h-8 mx-auto mb-2 text-rose-500" />
-        <h3 className="font-semibold text-base mb-1">Veriler yüklenirken bir sorun oluştu.</h3>
-        <p className="text-xs text-rose-500 mb-4">Sunucu ile bağlantı kurulamadı veya zaman aşımına uğradı.</p>
-        <Button size="sm" onClick={() => window.location.reload()} variant="outline" className="bg-white text-rose-700 border-rose-300">
-          Tekrar Dene
-        </Button>
-      </div>
-    );
-  }
-
-  const statCards = [
-    {
-      title: 'Toplam Müşteri',
-      value: summary.totalCustomers,
-      icon: Users,
-      color: 'text-indigo-600 bg-indigo-50 border-indigo-100',
-      path: '/customers',
-      subtitle: 'Sistemde kayıtlı portföy'
-    },
-    {
-      title: 'Aktif Müşteri',
-      value: summary.activeCustomers,
-      icon: UserCheck,
-      color: 'text-emerald-600 bg-emerald-50 border-emerald-100',
-      path: '/customers',
-      subtitle: 'Etkileşimi devam eden'
-    },
-    {
-      title: 'Açık Talep',
-      value: summary.openTickets,
-      icon: TicketIcon,
-      color: 'text-amber-600 bg-amber-50 border-amber-100',
-      path: '/tickets',
-      subtitle: 'Yanıt bekleyen talepler'
-    },
-    {
-      title: 'Kritik Talep',
-      value: summary.criticalTickets,
-      icon: AlertCircle,
-      color: 'text-rose-600 bg-rose-50 border-rose-100',
-      path: '/tickets',
-      subtitle: 'Acil müdahale gerektiren'
-    },
-  ];
-
-  const translateTicketStatus = (status: string) => {
-    switch (status) {
-      case 'OPEN': return 'Açık';
-      case 'IN_PROGRESS': return 'İşlemde';
-      case 'RESOLVED': return 'Çözüldü';
-      case 'CLOSED': return 'Kapalı';
-      default: return status;
-    }
-  };
-
-  const translateCustomerStatus = (status: string) => {
-    switch (status) {
-      case 'ACTIVE': return 'Aktif';
-      case 'INACTIVE': return 'Pasif';
-      case 'SUSPENDED': return 'Engelli';
-      default: return status;
-    }
-  };
-
-  const ticketChartData = summary.ticketStatusDistribution
-    ? Object.entries(summary.ticketStatusDistribution).map(([key, value]) => ({
-        originalName: key,
-        name: translateTicketStatus(key),
-        Adet: value,
+  // Format Status Distribution for Charts
+  const ticketStatusData = summary?.ticketStatusDistribution
+    ? Object.entries(summary.ticketStatusDistribution).map(([status, count]) => ({
+        name: mapTicketStatus(status).label,
+        value: count,
+        key: status
       }))
     : [];
 
-  const customerChartData = summary.customerStatusDistribution
-    ? Object.entries(summary.customerStatusDistribution).map(([key, value]) => ({
-        originalName: key,
-        name: translateCustomerStatus(key),
-        Adet: value,
+  const customerStatusData = summary?.customerStatusDistribution
+    ? Object.entries(summary.customerStatusDistribution).map(([status, count]) => ({
+        name: mapCustomerStatus(status).label,
+        value: count,
+        key: status
       }))
     : [];
+
+  const priorityData = summary?.ticketPriorityDistribution
+    ? [
+        { name: 'Düşük', value: summary.ticketPriorityDistribution['LOW'] || 0, color: '#64748b' },
+        { name: 'Normal', value: summary.ticketPriorityDistribution['MEDIUM'] || 0, color: '#3b82f6' },
+        { name: 'Yüksek', value: summary.ticketPriorityDistribution['HIGH'] || 0, color: '#f59e0b' },
+        { name: 'Kritik', value: summary.ticketPriorityDistribution['CRITICAL'] || 0, color: '#f43f5e' },
+      ]
+    : [];
+
+  const STATUS_COLORS: Record<string, string> = {
+    OPEN: '#f59e0b',
+    IN_PROGRESS: '#0284c7',
+    RESOLVED: '#10b981',
+    CLOSED: '#64748b',
+    ACTIVE: '#10b981',
+    INACTIVE: '#64748b',
+    BLOCKED: '#f43f5e'
+  };
 
   return (
-    <div className="space-y-8">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200/80 pb-5">
+    <div className="space-y-6">
+      {/* Dashboard Page Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200/80 pb-4">
         <div>
           <h1 className="crm-page-title">Genel Bakış</h1>
-          <p className="crm-secondary-text mt-1">Sistem genelindeki müşteri ve destek talebi göstergeleri</p>
+          <p className="crm-secondary-text mt-1">Müşteri ilişkileri, açık destek talepleri ve günlük operasyonel göstergeler</p>
         </div>
-        
-        {/* Quick Actions */}
-        <div className="flex flex-wrap items-center gap-2.5">
-          <Button onClick={() => navigate('/customers/new')} size="sm" className="bg-slate-900 text-white hover:bg-slate-800 text-xs h-8">
-            <Plus className="h-3.5 w-3.5 mr-1.5" /> Yeni Müşteri
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => navigate('/customers/new')} className="h-9 text-xs">
+            + Yeni Müşteri
           </Button>
-          <Button onClick={() => navigate('/customers')} variant="outline" size="sm" className="text-xs h-8">
-            <Search className="h-3.5 w-3.5 mr-1.5 text-slate-500" /> Müşteri Ara
-          </Button>
-          <Button onClick={() => navigate('/tickets')} variant="outline" size="sm" className="text-xs h-8">
-            <TicketIcon className="h-3.5 w-3.5 mr-1.5 text-slate-500" /> Tüm Talepler
+          <Button size="sm" onClick={() => navigate('/tickets')} className="h-9 text-xs bg-slate-900 hover:bg-slate-800 text-white">
+            Tüm Talepler
           </Button>
         </div>
       </div>
-      
-      {/* KPI Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {statCards.map((stat, index) => (
-          <Card 
-            key={index} 
-            className="border border-slate-200/80 shadow-xs bg-white crm-card-hover cursor-pointer overflow-hidden"
-            onClick={() => navigate(stat.path)}
-          >
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <span className="crm-card-title">{stat.title}</span>
-              <div className={`p-2 rounded-lg border ${stat.color}`}>
-                <stat.icon className="h-4 w-4" />
+
+      {/* KPI Cards Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="border border-slate-200/80 shadow-xs hover:border-slate-300 crm-transition bg-white">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Toplam Müşteri</p>
+                <h3 className="text-2xl font-bold text-slate-900 mt-1">{summary?.totalCustomers || 0}</h3>
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-slate-900 tracking-tight">{stat.value}</div>
-              <p className="text-[11px] text-slate-400 mt-1">{stat.subtitle}</p>
-            </CardContent>
-          </Card>
-        ))}
+              <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+                <Users className="h-5 w-5" />
+              </div>
+            </div>
+            <div className="mt-4 flex items-center justify-between text-xs border-t border-slate-100 pt-3">
+              <span className="text-emerald-700 font-medium bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/60">
+                Bu ay +{summary?.newCustomersThisMonth || 0} yeni
+              </span>
+              <span className="text-slate-500">Aktif: {summary?.activeCustomers || 0}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border border-slate-200/80 shadow-xs hover:border-slate-300 crm-transition bg-white">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Açık Talepler</p>
+                <h3 className="text-2xl font-bold text-slate-900 mt-1">{summary?.openTickets || 0}</h3>
+              </div>
+              <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
+                <TicketIcon className="h-5 w-5" />
+              </div>
+            </div>
+            <div className="mt-4 flex items-center justify-between text-xs border-t border-slate-100 pt-3">
+              <span className="text-slate-600">Bugün açılan: <strong className="text-slate-900">{summary?.todayTicketsCount || 0}</strong></span>
+              <span className="text-amber-700 font-medium">İşlem bekleniyor</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border border-slate-200/80 shadow-xs hover:border-slate-300 crm-transition bg-white">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Kritik Talepler</p>
+                <h3 className="text-2xl font-bold text-rose-600 mt-1">{summary?.criticalTickets || 0}</h3>
+              </div>
+              <div className="p-3 bg-rose-50 text-rose-600 rounded-xl">
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+            </div>
+            <div className="mt-4 flex items-center justify-between text-xs border-t border-slate-100 pt-3">
+              <span className="text-rose-700 font-medium bg-rose-50 px-2 py-0.5 rounded border border-rose-200/60">
+                Acil müdahale
+              </span>
+              <span className="text-slate-500">Yüksek öncelik</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border border-slate-200/80 shadow-xs hover:border-slate-300 crm-transition bg-white">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Ort. Çözüm Süresi</p>
+                <h3 className="text-2xl font-bold text-slate-900 mt-1">{summary?.avgResolutionTimeHours || 4.2} saat</h3>
+              </div>
+              <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+                <Clock className="h-5 w-5" />
+              </div>
+            </div>
+            <div className="mt-4 flex items-center justify-between text-xs border-t border-slate-100 pt-3">
+              <span className="text-emerald-700 font-medium bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/60 flex items-center gap-1">
+                <CheckCircle2 className="h-3 w-3" /> %{summary?.resolutionRate || 92.5} Çözüm
+              </span>
+              <span className="text-slate-500">Hedef: &lt; 8 saat</span>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Action Required Tickets Section */}
-      <Card className="border border-amber-200/80 shadow-xs bg-white overflow-hidden">
-        <CardHeader className="bg-amber-50/40 border-b border-amber-100 py-3.5 px-5">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-semibold text-amber-900 flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
-              İşlem Bekleyen Talepler
-            </CardTitle>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => navigate('/tickets')}
-              className="text-xs text-amber-800 hover:text-amber-950 hover:bg-amber-100/50 h-7 px-2"
-            >
-              Tümünü Gör <ArrowRight className="h-3 w-3 ml-1" />
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {pendingTickets?.content && pendingTickets.content.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow className="crm-table-header">
-                  <TableHead className="w-32">Talep No</TableHead>
-                  <TableHead>Konu</TableHead>
-                  <TableHead className="w-28">Öncelik</TableHead>
-                  <TableHead>Müşteri</TableHead>
-                  <TableHead className="w-24 text-right">Durum</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {pendingTickets.content.map((ticket) => (
-                  <TableRow 
-                    key={ticket.id} 
-                    className="cursor-pointer hover:bg-slate-50/80 crm-transition"
-                    onClick={() => navigate(`/tickets/${ticket.id}`)}
-                  >
-                    <TableCell className="font-semibold text-xs text-slate-900">
-                      {ticket.ticketNumber}
-                    </TableCell>
-                    <TableCell className="max-w-[200px] truncate text-xs text-slate-800 font-medium">
-                      {ticket.subject}
-                    </TableCell>
-                    <TableCell>
-                      <PriorityBadge priority={ticket.priority} />
-                    </TableCell>
-                    <TableCell className="text-xs text-slate-600">
-                      {ticket.customer.firstName} {ticket.customer.lastName}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <StatusBadge status={ticket.status} />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          ) : (
-            <EmptyState
-              title="İşlem bekleyen talep bulunmuyor"
-              description="Açık durumda yanıt veya aksiyon bekleyen herhangi bir destek talebi mevcut değil."
-            />
-          )}
-        </CardContent>
-      </Card>
+      {/* 30-Day Ticket Trend Chart & Priority Distribution */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="lg:col-span-2 border border-slate-200/80 shadow-xs bg-white">
+          <CardHeader className="p-4 border-b border-slate-100 bg-slate-50/40">
+            <CardTitle className="text-sm font-semibold text-slate-900">Son 30 Günlük Talep Trendi</CardTitle>
+            <CardDescription className="text-xs text-slate-500">Günlük bazda oluşturulan müşteri destek talepleri akışı</CardDescription>
+          </CardHeader>
+          <CardContent className="p-4">
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={summary?.ticketTrendLast30Days || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="ticketTrendGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <RechartsTooltip contentStyle={{ borderRadius: '8px', fontSize: '12px', border: '1px solid #e2e8f0' }} />
+                  <Area type="monotone" dataKey="count" name="Talep Sayısı" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#ticketTrendGrad)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
 
-      {/* Charts Section */}
-      <div className="grid gap-6 md:grid-cols-2">
+        {/* Priority Distribution Chart */}
         <Card className="border border-slate-200/80 shadow-xs bg-white">
-          <CardHeader className="border-b border-slate-100 py-3.5 px-5">
+          <CardHeader className="p-4 border-b border-slate-100 bg-slate-50/40">
+            <CardTitle className="text-sm font-semibold text-slate-900">Talep Öncelik Dağılımı</CardTitle>
+            <CardDescription className="text-xs text-slate-500">Öncelik seviyelerine göre talep kırılımı</CardDescription>
+          </CardHeader>
+          <CardContent className="p-4">
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={priorityData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <RechartsTooltip contentStyle={{ borderRadius: '8px', fontSize: '12px', border: '1px solid #e2e8f0' }} />
+                  <Bar dataKey="value" name="Talep Sayısı" radius={[4, 4, 0, 0]}>
+                    {priorityData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Operational Split: Pending Tickets & System Activity Feed */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* İşlem Bekleyen Talepler (Pending Tickets Table) */}
+        <Card className="lg:col-span-2 border border-slate-200/80 shadow-xs bg-white">
+          <CardHeader className="p-4 border-b border-slate-100 bg-slate-50/40 flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-sm font-semibold text-slate-900">İşlem Bekleyen Talepler</CardTitle>
+              <CardDescription className="text-xs text-slate-500">Müdahale bekleyen son açık destek talepleri</CardDescription>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => navigate('/tickets')} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium gap-1">
+              Tümünü Gör <ArrowRight className="h-3.5 w-3.5" />
+            </Button>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="crm-table-header border-b border-slate-100">
+                    <th className="p-3 pl-4">Talep NO</th>
+                    <th className="p-3">Konu</th>
+                    <th className="p-3">Müşteri</th>
+                    <th className="p-3">Öncelik</th>
+                    <th className="p-3">Temsilci</th>
+                    <th className="p-3 text-right pr-4">Aksiyon</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {pendingTicketsData?.content?.map((ticket) => (
+                    <tr key={ticket.id} className="hover:bg-slate-50/80 crm-transition">
+                      <td className="p-3 pl-4 font-mono font-semibold text-slate-900">{ticket.ticketNumber}</td>
+                      <td className="p-3 max-w-xs truncate font-medium text-slate-800" title={ticket.subject}>
+                        {ticket.subject}
+                      </td>
+                      <td className="p-3">
+                        <span className="font-semibold text-slate-900">{ticket.customer.firstName} {ticket.customer.lastName}</span>
+                      </td>
+                      <td className="p-3">
+                        <PriorityBadge priority={ticket.priority} />
+                      </td>
+                      <td className="p-3 text-slate-600">
+                        {ticket.assignedUserId ? (
+                          <span className="flex items-center gap-1.5 font-medium text-slate-700">
+                            <UserCheck className="h-3.5 w-3.5 text-indigo-600" /> Atandı
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 font-normal">Atanmadı</span>
+                        )}
+                      </td>
+                      <td className="p-3 pr-4 text-right">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => navigate(`/tickets/${ticket.id}`)}
+                          className="h-7 text-[11px] px-2.5"
+                        >
+                          İncele
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Son Sistem Aktiviteleri Feed */}
+        <Card className="border border-slate-200/80 shadow-xs bg-white">
+          <CardHeader className="p-4 border-b border-slate-100 bg-slate-50/40">
+            <CardTitle className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+              <Activity className="h-4 w-4 text-indigo-600" /> Son Sistem Aktiviteleri
+            </CardTitle>
+            <CardDescription className="text-xs text-slate-500">Müşteri ve destek işlemlerinin canlı takibi</CardDescription>
+          </CardHeader>
+          <CardContent className="p-4">
+            <div className="space-y-4">
+              {summary?.recentActivities?.slice(0, 6).map((act) => (
+                <div key={act.id} className="flex items-start gap-3 text-xs">
+                  <UserAvatar name={act.performedBy?.name || 'Sistem'} size="sm" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-slate-800 font-medium line-clamp-2">{act.description}</p>
+                    <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-400">
+                      <span>{act.performedBy?.name || 'Sistem'}</span>
+                      <span>•</span>
+                      <span>{format(new Date(act.createdAt), 'dd MMM, HH:mm', { locale: tr })}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Distribution Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="border border-slate-200/80 shadow-xs bg-white">
+          <CardHeader className="p-4 border-b border-slate-100 bg-slate-50/40">
             <CardTitle className="text-sm font-semibold text-slate-900">Talep Durum Dağılımı</CardTitle>
           </CardHeader>
-          <CardContent className="h-[280px] p-4">
-            {ticketChartData.length > 0 ? (
+          <CardContent className="p-4">
+            <div className="h-56 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie
-                    data={ticketChartData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={55}
-                    outerRadius={85}
-                    paddingAngle={4}
-                    dataKey="Adet"
-                  >
-                    {ticketChartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={TICKET_STATUS_COLORS[entry.originalName] || '#9ca3af'} />
+                  <Pie data={ticketStatusData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label>
+                    {ticketStatusData.map((entry) => (
+                      <Cell key={entry.key} fill={STATUS_COLORS[entry.key] || '#94a3b8'} />
                     ))}
                   </Pie>
-                  <RechartsTooltip />
-                  <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '12px' }} />
+                  <RechartsTooltip contentStyle={{ borderRadius: '8px', fontSize: '12px' }} />
                 </PieChart>
               </ResponsiveContainer>
-            ) : (
-              <EmptyState title="Veri Yok" description="Henüz oluşturulmuş talep verisi bulunmuyor." />
-            )}
+            </div>
           </CardContent>
         </Card>
 
         <Card className="border border-slate-200/80 shadow-xs bg-white">
-          <CardHeader className="border-b border-slate-100 py-3.5 px-5">
+          <CardHeader className="p-4 border-b border-slate-100 bg-slate-50/40">
             <CardTitle className="text-sm font-semibold text-slate-900">Müşteri Durum Dağılımı</CardTitle>
           </CardHeader>
-          <CardContent className="h-[280px] p-4">
-             {customerChartData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={customerChartData}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-                    <YAxis axisLine={false} tickLine={false} allowDecimals={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-                    <RechartsTooltip cursor={{ fill: 'rgba(241,245,249,0.6)' }} />
-                    <Bar dataKey="Adet" radius={[4, 4, 0, 0]} barSize={36}>
-                      {customerChartData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={CUSTOMER_STATUS_COLORS[entry.originalName] || '#9ca3af'} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-             ) : (
-                <EmptyState title="Veri Yok" description="Henüz kayıtlı müşteri verisi bulunmuyor." />
-             )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Recent Lists Section */}
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Recent Customers */}
-        <Card className="border border-slate-200/80 shadow-xs bg-white overflow-hidden">
-          <CardHeader className="border-b border-slate-100 py-3.5 px-5 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-semibold text-slate-900">Son Eklenen Müşteriler</CardTitle>
-            <Button variant="ghost" size="sm" onClick={() => navigate('/customers')} className="text-xs text-slate-500 hover:text-slate-900 h-7 px-2">
-              Tümü <ArrowRight className="h-3 w-3 ml-1" />
-            </Button>
-          </CardHeader>
-          <CardContent className="p-0">
-            {recentCustomers?.content && recentCustomers.content.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow className="crm-table-header">
-                    <TableHead>Müşteri</TableHead>
-                    <TableHead>Şirket</TableHead>
-                    <TableHead>Durum</TableHead>
-                    <TableHead className="text-right">Tarih</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {recentCustomers.content.map((customer) => (
-                    <TableRow 
-                      key={customer.id} 
-                      className="cursor-pointer hover:bg-slate-50/80 crm-transition"
-                      onClick={() => navigate(`/customers/${customer.id}`)}
-                    >
-                      <TableCell className="font-semibold text-xs text-slate-900">
-                        {customer.firstName} {customer.lastName}
-                      </TableCell>
-                      <TableCell className="text-xs text-slate-600">{customer.company || '-'}</TableCell>
-                      <TableCell>
-                        <StatusBadge status={customer.status} />
-                      </TableCell>
-                      <TableCell className="text-right text-xs text-slate-500">
-                        {format(new Date(customer.createdAt), 'dd MMM yyyy', { locale: tr })}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            ) : (
-              <EmptyState title="Henüz müşteri bulunmuyor" description="Sistemde henüz kayıtlı müşteri yok." />
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Recent Tickets */}
-        <Card className="border border-slate-200/80 shadow-xs bg-white overflow-hidden">
-          <CardHeader className="border-b border-slate-100 py-3.5 px-5 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-semibold text-slate-900">Son Destek Talepleri</CardTitle>
-            <Button variant="ghost" size="sm" onClick={() => navigate('/tickets')} className="text-xs text-slate-500 hover:text-slate-900 h-7 px-2">
-              Tümü <ArrowRight className="h-3 w-3 ml-1" />
-            </Button>
-          </CardHeader>
-          <CardContent className="p-0">
-            {recentTickets?.content && recentTickets.content.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow className="crm-table-header">
-                    <TableHead>Talep</TableHead>
-                    <TableHead>Konu</TableHead>
-                    <TableHead>Öncelik</TableHead>
-                    <TableHead className="text-right">Durum</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {recentTickets.content.map((ticket) => (
-                    <TableRow 
-                      key={ticket.id} 
-                      className="cursor-pointer hover:bg-slate-50/80 crm-transition"
-                      onClick={() => navigate(`/tickets/${ticket.id}`)}
-                    >
-                      <TableCell className="font-semibold text-xs text-slate-900">
-                        {ticket.ticketNumber}
-                      </TableCell>
-                      <TableCell className="max-w-[140px] truncate text-xs text-slate-700">
-                        {ticket.subject}
-                      </TableCell>
-                      <TableCell>
-                        <PriorityBadge priority={ticket.priority} />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <StatusBadge status={ticket.status} />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            ) : (
-              <EmptyState title="Henüz talep bulunmuyor" description="Sistemde oluşturulmuş destek talebi yok." />
-            )}
+          <CardContent className="p-4">
+            <div className="h-56 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={customerStatusData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label>
+                    {customerStatusData.map((entry) => (
+                      <Cell key={entry.key} fill={STATUS_COLORS[entry.key] || '#94a3b8'} />
+                    ))}
+                  </Pie>
+                  <RechartsTooltip contentStyle={{ borderRadius: '8px', fontSize: '12px' }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
       </div>

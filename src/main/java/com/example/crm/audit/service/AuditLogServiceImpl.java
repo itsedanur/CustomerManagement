@@ -18,6 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import org.springframework.data.jpa.domain.Specification;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -52,8 +54,26 @@ public class AuditLogServiceImpl implements AuditLogService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<AuditLogResponse> getAllLogs(Pageable pageable) {
-        return auditLogRepository.findAllByOrderByCreatedAtDesc(pageable)
+    public Page<AuditLogResponse> getAllLogs(String search, String action, Pageable pageable) {
+        Specification<AuditLog> spec = (root, query, cb) -> cb.conjunction();
+
+        if (search != null && !search.trim().isEmpty()) {
+            String likePattern = "%" + search.trim().toLowerCase() + "%";
+            Specification<AuditLog> searchSpec = (root, query, cb) -> cb.or(
+                    cb.like(cb.lower(root.get("details")), likePattern),
+                    cb.like(cb.lower(root.get("entityId")), likePattern),
+                    cb.like(cb.lower(root.get("entityType")), likePattern),
+                    cb.like(cb.lower(root.get("ipAddress")), likePattern)
+            );
+            spec = spec.and(searchSpec);
+        }
+
+        if (action != null && !action.trim().isEmpty() && !"ALL".equalsIgnoreCase(action)) {
+            Specification<AuditLog> actionSpec = (root, query, cb) -> cb.equal(root.get("action"), action);
+            spec = spec.and(actionSpec);
+        }
+
+        return auditLogRepository.findAll(spec, pageable)
                 .map(auditLogMapper::toResponse);
     }
 

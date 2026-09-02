@@ -24,11 +24,13 @@ export const ticketApi = {
     page = 0, 
     size = 10, 
     status?: string, 
-    priority?: string
+    priority?: string,
+    search?: string
   ): Promise<PageResponse<Ticket>> => {
     let url = `/api/tickets?page=${page}&size=${size}`;
     if (status && status !== 'ALL') url += `&status=${status}`;
     if (priority && priority !== 'ALL') url += `&priority=${priority}`;
+    if (search) url += `&search=${encodeURIComponent(search)}`;
     const response = await api.get(url);
     return response.data;
   },
