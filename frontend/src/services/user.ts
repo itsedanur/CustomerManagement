@@ -7,6 +7,8 @@ export interface User {
   email: string;
   role: 'ADMIN' | 'MANAGER' | 'AGENT';
   enabled: boolean;
+  openTicketsCount?: number;
+  activeTasksCount?: number;
 }
 
 export const userApi = {

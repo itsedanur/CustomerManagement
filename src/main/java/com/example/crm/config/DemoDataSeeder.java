@@ -70,33 +70,33 @@ public class DemoDataSeeder implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        logger.info("Checking Phase 14 CRM demo dataset seeding status...");
+        logger.info("Checking Phase 14.1 CRM demo dataset seeding status...");
 
-        // 1. Seed Users (Representatives) idempotently
+        // 1. Seed Users (Representatives)
         List<User> users = seedUsers();
 
-        // 2. Seed 45 Customers idempotently
+        // 2. Seed 45 Customers with 6-month realistic creation date distribution
         List<Customer> customers = seedCustomers();
 
         // 3. Seed Addresses for Customers
         seedAddresses(customers);
 
-        // 4. Seed 30 Support Tickets idempotently
+        // 4. Seed 30 Support Tickets with realistic 60-day distribution (including 2 today)
         List<Ticket> tickets = seedTickets(customers, users);
 
-        // 5. Seed Activities & Audit Logs idempotently
+        // 5. Seed Activities & Audit Logs
         seedActivitiesAndAuditLogs(customers, tickets, users);
 
-        // 6. Seed Phase 14 Customer Notes
+        // 6. Seed Customer Notes
         seedCustomerNotes(customers, users);
 
-        // 7. Seed Phase 14 Ticket Notes
+        // 7. Seed Ticket Notes
         seedTicketNotes(tickets, users);
 
-        // 8. Seed Phase 14 CRM Tasks
+        // 8. Seed CRM Tasks (Overdue, Due Today, Future)
         seedTasks(customers, tickets, users);
 
-        // 9. Seed Phase 14 Notifications
+        // 9. Seed Notifications
         seedNotifications(users, tickets);
 
         logger.info("DemoDataSeeder check completed. Total in DB: {} Users, {} Customers, {} Tickets, {} Tasks, {} Customer Notes, {} Ticket Notes.",
@@ -171,11 +171,9 @@ public class DemoDataSeeder implements ApplicationRunner {
         String[] corporateCompanies = {
                 "Atlas Otomotiv A.Ş.", "Nova Yazılım", "Mavi Lojistik", "Pera Danışmanlık", "Artemis Teknoloji",
                 "Vega Enerji", "Marmara Bilişim", "Kuzey Lojistik", "Anka Dijital", "Rota Teknoloji",
-                "Delta Endüstri", "Luna E-Ticaret", "Vizyon Medya", "Pars Savunma", "Kanyon Yapı",
-                "Meridyen Gıda", "Sentez Kimya", "Ege Tekstil", "Doğuş Ambalaj", "Zirve Metal"
+                "Delta Endüstri", "Luna E-Ticaret", "Vizyon Medya", "Pars Savunma", "Kanyon Yapı"
         };
 
-        Random random = new Random(42);
         LocalDateTime now = LocalDateTime.now();
 
         for (int i = 0; i < 45; i++) {
@@ -187,19 +185,21 @@ public class DemoDataSeeder implements ApplicationRunner {
             String company = isCorporate ? corporateCompanies[(i / 3) % corporateCompanies.length] : fn + " " + ln + " Bireysel";
 
             CustomerStatus status;
-            if (i % 10 == 9) {
+            if (i % 15 == 14) {
                 status = CustomerStatus.BLOCKED;
-            } else if (i % 5 == 3) {
+            } else if (i % 7 == 6) {
                 status = CustomerStatus.INACTIVE;
             } else {
                 status = CustomerStatus.ACTIVE;
             }
 
-            int daysAgo = random.nextInt(180) + 1; // last 6 months
-            LocalDateTime createdAt = now.minusDays(daysAgo).minusHours(random.nextInt(12)).minusMinutes(random.nextInt(60));
+            // Distribute registration smoothly across last 180 days (6 months)
+            // i = 0..44 -> 175 days ago down to 2 days ago
+            int daysAgo = 175 - (i * 170 / 44); 
+            LocalDateTime createdAt = now.minusDays(daysAgo).minusHours(i % 12).minusMinutes((i * 13) % 60);
 
             String email = fn.toLowerCase(Locale.ENGLISH) + "." + ln.toLowerCase(Locale.ENGLISH) + (i + 1) + "@example.com";
-            String phone = "+90 5" + (30 + random.nextInt(6)) + " " + String.format("%03d %04d", random.nextInt(1000), random.nextInt(10000));
+            String phone = "+90 5" + (30 + (i % 6)) + " " + String.format("%03d %04d", (i * 23) % 1000, (i * 157) % 10000);
 
             Customer customer = customerRepository.findByEmail(email).orElse(null);
             if (customer == null) {
@@ -301,31 +301,62 @@ public class DemoDataSeeder implements ApplicationRunner {
                 "Toplu fatura aktarımında kesinti"
         };
 
+        // Distribution of statuses: 11 OPEN, 8 IN_PROGRESS, 7 RESOLVED, 4 CLOSED
         TicketStatus[] statuses = {
+                TicketStatus.OPEN, TicketStatus.IN_PROGRESS, TicketStatus.OPEN, TicketStatus.RESOLVED,
+                TicketStatus.OPEN, TicketStatus.IN_PROGRESS, TicketStatus.CLOSED, TicketStatus.RESOLVED,
+                TicketStatus.OPEN, TicketStatus.IN_PROGRESS, TicketStatus.OPEN, TicketStatus.RESOLVED,
+                TicketStatus.OPEN, TicketStatus.IN_PROGRESS, TicketStatus.CLOSED, TicketStatus.OPEN,
                 TicketStatus.OPEN, TicketStatus.IN_PROGRESS, TicketStatus.RESOLVED, TicketStatus.CLOSED,
-                TicketStatus.OPEN, TicketStatus.IN_PROGRESS, TicketStatus.OPEN, TicketStatus.RESOLVED
+                TicketStatus.OPEN, TicketStatus.IN_PROGRESS, TicketStatus.OPEN, TicketStatus.RESOLVED,
+                TicketStatus.OPEN, TicketStatus.IN_PROGRESS, TicketStatus.RESOLVED, TicketStatus.CLOSED,
+                TicketStatus.OPEN, TicketStatus.IN_PROGRESS
         };
 
+        // Priorities: 5 LOW, 12 MEDIUM, 8 HIGH, 5 CRITICAL
         TicketPriority[] priorities = {
-                TicketPriority.LOW, TicketPriority.MEDIUM, TicketPriority.HIGH, TicketPriority.CRITICAL,
-                TicketPriority.MEDIUM, TicketPriority.HIGH, TicketPriority.CRITICAL, TicketPriority.MEDIUM
+                TicketPriority.MEDIUM, TicketPriority.HIGH, TicketPriority.LOW, TicketPriority.CRITICAL,
+                TicketPriority.MEDIUM, TicketPriority.HIGH, TicketPriority.MEDIUM, TicketPriority.LOW,
+                TicketPriority.CRITICAL, TicketPriority.MEDIUM, TicketPriority.HIGH, TicketPriority.MEDIUM,
+                TicketPriority.LOW, TicketPriority.CRITICAL, TicketPriority.MEDIUM, TicketPriority.HIGH,
+                TicketPriority.MEDIUM, TicketPriority.LOW, TicketPriority.CRITICAL, TicketPriority.HIGH,
+                TicketPriority.MEDIUM, TicketPriority.MEDIUM, TicketPriority.HIGH, TicketPriority.LOW,
+                TicketPriority.CRITICAL, TicketPriority.HIGH, TicketPriority.MEDIUM, TicketPriority.MEDIUM,
+                TicketPriority.HIGH, TicketPriority.MEDIUM
         };
 
-        Random random = new Random(88);
         LocalDateTime now = LocalDateTime.now();
 
+        // 30 tickets created over last 60 days.
+        // Index 0 and 1 are created TODAY (0 days ago) for realistic "Bugün açılan: 2" KPI!
         for (int i = 0; i < 30; i++) {
             Customer customer = customers.get(i % customers.size());
             User assignedUser = users.get((i % (users.size() - 1)) + 1);
 
-            TicketStatus status = statuses[i % statuses.length];
-            TicketPriority priority = priorities[i % priorities.length];
+            TicketStatus status = statuses[i];
+            TicketPriority priority = priorities[i];
 
-            int daysAgo = random.nextInt(45);
-            LocalDateTime createdAt = now.minusDays(daysAgo).minusHours(random.nextInt(10)).minusMinutes(random.nextInt(50));
-            LocalDateTime updatedAt = (status == TicketStatus.RESOLVED || status == TicketStatus.CLOSED)
-                    ? createdAt.plusHours(random.nextInt(36) + 1)
-                    : createdAt.plusMinutes(random.nextInt(120));
+            int daysAgo;
+            if (i == 0) {
+                daysAgo = 0; // Opened 2 hours ago today
+            } else if (i == 1) {
+                daysAgo = 0; // Opened 4 hours ago today
+            } else {
+                // Distribute evenly 1 to 58 days ago
+                daysAgo = 1 + (i * 57 / 28);
+            }
+
+            LocalDateTime createdAt = (daysAgo == 0) 
+                    ? now.minusHours(2 + i * 2) 
+                    : now.minusDays(daysAgo).minusHours((i * 3) % 12).minusMinutes((i * 17) % 60);
+
+            LocalDateTime updatedAt;
+            if (status == TicketStatus.RESOLVED || status == TicketStatus.CLOSED) {
+                // Resolved in 2 to 6 hours for realistic average resolution time (~4.2 hours)
+                updatedAt = createdAt.plusHours(2 + (i % 5));
+            } else {
+                updatedAt = createdAt.plusMinutes(15 + (i * 10));
+            }
 
             String ticketNumber = String.format("CRM-2026-%06d", i + 101);
 
@@ -333,8 +364,8 @@ public class DemoDataSeeder implements ApplicationRunner {
             if (ticket == null) {
                 ticket = Ticket.builder()
                         .ticketNumber(ticketNumber)
-                        .subject(subjects[i % subjects.length])
-                        .description(subjects[i % subjects.length] + " ile ilgili destek talebi oluşturuldu. İnceleme başlatıldı.")
+                        .subject(subjects[i])
+                        .description(subjects[i] + " ile ilgili teknik destek talebi açılmıştır. Temsilci incelemesindedir.")
                         .status(status)
                         .priority(priority)
                         .customer(customer)
@@ -351,8 +382,6 @@ public class DemoDataSeeder implements ApplicationRunner {
     }
 
     private void seedActivitiesAndAuditLogs(List<Customer> customers, List<Ticket> tickets, List<User> users) {
-        Random random = new Random(77);
-
         if (activityRepository.count() < 30) {
             for (int i = 0; i < 40; i++) {
                 Customer customer = customers.get(i % customers.size());
@@ -375,7 +404,7 @@ public class DemoDataSeeder implements ApplicationRunner {
                     desc = "Müşteri iletişim bilgileri doğrulandı";
                 }
 
-                LocalDateTime time = LocalDateTime.now().minusDays(random.nextInt(30)).minusHours(random.nextInt(12));
+                LocalDateTime time = ticket.getCreatedAt().plusMinutes((i * 25) % 300);
 
                 Activity activity = Activity.builder()
                         .customer(customer)
@@ -400,7 +429,7 @@ public class DemoDataSeeder implements ApplicationRunner {
                 User user = users.get(i % users.size());
                 String action = actions[i % actions.length];
 
-                LocalDateTime time = LocalDateTime.now().minusDays(random.nextInt(30)).minusHours(random.nextInt(10));
+                LocalDateTime time = LocalDateTime.now().minusDays(i * 3 + 1).minusHours(i % 10);
 
                 AuditLog log = AuditLog.builder()
                         .user(user)
@@ -433,12 +462,11 @@ public class DemoDataSeeder implements ApplicationRunner {
                 "Kurumsal hesap yöneticisi ile toplantı yapıldı."
         };
 
-        Random random = new Random(55);
         for (int i = 0; i < 20; i++) {
             Customer customer = customers.get(i % customers.size());
             User author = users.get((i % (users.size() - 1)) + 1);
 
-            LocalDateTime time = LocalDateTime.now().minusDays(random.nextInt(45)).minusHours(random.nextInt(12));
+            LocalDateTime time = customer.getCreatedAt().plusDays(i % 5 + 1);
 
             CustomerNote note = CustomerNote.builder()
                     .customer(customer)
@@ -466,12 +494,11 @@ public class DemoDataSeeder implements ApplicationRunner {
                 "Sorunun çözümü için alternatif geçici çözüm sağlandı."
         };
 
-        Random random = new Random(66);
         for (int i = 0; i < 20; i++) {
             Ticket ticket = tickets.get(i % tickets.size());
             User author = users.get(i % users.size());
 
-            LocalDateTime time = LocalDateTime.now().minusDays(random.nextInt(30)).minusHours(random.nextInt(10));
+            LocalDateTime time = ticket.getCreatedAt().plusMinutes(30 + i * 15);
 
             TicketNote note = TicketNote.builder()
                     .ticket(ticket)
@@ -504,7 +531,7 @@ public class DemoDataSeeder implements ApplicationRunner {
         TaskPriority[] priorities = {TaskPriority.LOW, TaskPriority.MEDIUM, TaskPriority.HIGH, TaskPriority.CRITICAL};
         TaskStatus[] statuses = {TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.COMPLETED, TaskStatus.CANCELLED, TaskStatus.TODO, TaskStatus.IN_PROGRESS};
 
-        Random random = new Random(99);
+        LocalDateTime now = LocalDateTime.now();
 
         for (int i = 0; i < 25; i++) {
             Customer customer = (i % 2 == 0) ? customers.get(i % customers.size()) : null;
@@ -517,15 +544,18 @@ public class DemoDataSeeder implements ApplicationRunner {
             TaskStatus status = statuses[i % statuses.length];
 
             LocalDateTime dueDate;
-            if (i % 4 == 0) {
-                dueDate = LocalDateTime.now().withHour(17).withMinute(0);
-            } else if (i % 4 == 1) {
-                dueDate = LocalDateTime.now().minusDays(i % 5 + 1);
+            if (i < 4) {
+                // Due TODAY for "Bugünkü Görevlerim"
+                dueDate = now.withHour(17).withMinute(0);
+            } else if (i < 7) {
+                // OVERDUE for warning banner
+                dueDate = now.minusDays(i - 3);
             } else {
-                dueDate = LocalDateTime.now().plusDays(i % 10 + 2);
+                // Future dates
+                dueDate = now.plusDays(i - 5);
             }
 
-            LocalDateTime createdAt = LocalDateTime.now().minusDays(random.nextInt(20) + 1);
+            LocalDateTime createdAt = dueDate.minusDays(3);
 
             CrmTask task = CrmTask.builder()
                     .title(taskTitles[i % taskTitles.length] + " #" + (i + 1))
@@ -553,7 +583,7 @@ public class DemoDataSeeder implements ApplicationRunner {
             User recipient = users.get(i % users.size());
             Ticket ticket = tickets.get(i % tickets.size());
 
-            boolean isRead = (i % 2 == 0);
+            boolean isRead = (i % 3 == 0);
 
             Notification notification = Notification.builder()
                     .user(recipient)
@@ -568,4 +598,3 @@ public class DemoDataSeeder implements ApplicationRunner {
         }
     }
 }
-

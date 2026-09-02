@@ -13,6 +13,8 @@ public class UserResponse {
     private String email;
     private UserRole role;
     private Boolean enabled;
+    private Long openTicketsCount;
+    private Long activeTasksCount;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

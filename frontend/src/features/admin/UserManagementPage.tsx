@@ -113,11 +113,13 @@ export default function UserManagementPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="crm-table-header">
-                    <TableHead className="w-64">Kullanıcı</TableHead>
+                    <TableHead className="w-56">Kullanıcı</TableHead>
                     <TableHead>E-posta</TableHead>
-                    <TableHead className="w-36">Rol</TableHead>
-                    <TableHead className="w-28">Durum</TableHead>
-                    <TableHead className="w-48 text-right">İşlemler</TableHead>
+                    <TableHead className="w-32">Rol</TableHead>
+                    <TableHead className="w-28 text-center">Açık Talep</TableHead>
+                    <TableHead className="w-28 text-center">Aktif Görev</TableHead>
+                    <TableHead className="w-24">Durum</TableHead>
+                    <TableHead className="w-44 text-right">İşlemler</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -136,6 +138,8 @@ export default function UserManagementPage() {
                       </TableCell>
                       <TableCell className="text-xs text-slate-600">{u.email}</TableCell>
                       <TableCell>{getRoleBadge(u.role)}</TableCell>
+                      <TableCell className="text-center font-semibold text-xs text-slate-900">{u.openTicketsCount ?? 0}</TableCell>
+                      <TableCell className="text-center font-semibold text-xs text-slate-900">{u.activeTasksCount ?? 0}</TableCell>
                       <TableCell>
                         {u.enabled ? (
                           <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs gap-1 font-medium">

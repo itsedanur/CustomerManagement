@@ -19,6 +19,7 @@ public interface TicketRepository extends JpaRepository<Ticket, Long>, JpaSpecif
     long countByStatus(TicketStatus status);
     long countByPriority(TicketPriority priority);
     long countByCreatedAtAfter(LocalDateTime date);
+    long countByAssignedUserIdAndStatusIn(Long userId, List<TicketStatus> statuses);
     List<Ticket> findByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
 
     @Override

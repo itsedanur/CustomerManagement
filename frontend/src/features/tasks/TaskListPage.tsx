@@ -32,8 +32,9 @@ import {
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { Search, Plus, CheckCircle2, Clock, Play, XCircle, Edit3, X, Filter } from 'lucide-react';
-import { mapTaskStatus, mapTaskPriority, formatUserName } from '../../utils/enum-mapper';
-import { format } from 'date-fns';
+import { ticketApi } from '../../services/ticket';
+import { mapTaskStatus, mapTaskPriority, formatUserName, mapUserRole } from '../../utils/enum-mapper';
+import { format, isToday } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../app/store';
@@ -59,6 +60,7 @@ export default function TaskListPage() {
   const [formTitle, setFormTitle] = useState('');
   const [formDescription, setFormDescription] = useState('');
   const [formCustomerId, setFormCustomerId] = useState<string>('');
+  const [formTicketId, setFormTicketId] = useState<string>('');
   const [formAssignedUserId, setFormAssignedUserId] = useState<string>('');
   const [formDueDate, setFormDueDate] = useState('');
   const [formPriority, setFormPriority] = useState<'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'>('MEDIUM');
@@ -75,6 +77,18 @@ export default function TaskListPage() {
     queryFn: () => customerApi.getAll(0, 100, ''),
   });
   const customers = customersData?.content || [];
+
+  // Fetch Tickets for optional linking
+  const { data: ticketsData } = useQuery({
+    queryKey: ['tickets', { page: 0, size: 100 }],
+    queryFn: () => ticketApi.getAll(0, 100),
+  });
+  const tickets = ticketsData?.content || [];
+
+  // Filtered tickets based on selected customer
+  const filteredTickets = formCustomerId && formCustomerId !== 'none'
+    ? tickets.filter(t => t.customer?.id === Number(formCustomerId))
+    : tickets;
 
   // Fetch Tasks
   const { data: tasksData, isLoading } = useQuery({
@@ -111,7 +125,8 @@ export default function TaskListPage() {
       const payload = {
         title: formTitle.trim(),
         description: formDescription.trim() || undefined,
-        customerId: formCustomerId ? Number(formCustomerId) : undefined,
+        customerId: (formCustomerId && formCustomerId !== 'none') ? Number(formCustomerId) : undefined,
+        ticketId: (formTicketId && formTicketId !== 'none') ? Number(formTicketId) : undefined,
         assignedUserId: Number(formAssignedUserId),
         dueDate: formDueDate ? new Date(formDueDate).toISOString() : undefined,
         priority: formPriority,
@@ -139,6 +154,7 @@ export default function TaskListPage() {
     setFormTitle('');
     setFormDescription('');
     setFormCustomerId('');
+    setFormTicketId('');
     setFormAssignedUserId(currentUser?.id ? String(currentUser.id) : '');
     setFormDueDate('');
     setFormPriority('MEDIUM');
@@ -154,6 +170,7 @@ export default function TaskListPage() {
     setFormTitle(task.title);
     setFormDescription(task.description || '');
     setFormCustomerId(task.customerId ? String(task.customerId) : '');
+    setFormTicketId(task.ticketId ? String(task.ticketId) : '');
     setFormAssignedUserId(String(task.assignedUserId));
     setFormDueDate(task.dueDate ? format(new Date(task.dueDate), "yyyy-MM-dd'T'HH:mm") : '');
     setFormPriority(task.priority);
@@ -336,11 +353,18 @@ export default function TaskListPage() {
                         </TableCell>
                         <TableCell>
                           {task.dueDate ? (
-                            <div className="flex items-center gap-1 text-slate-600">
-                              <Clock className={`h-3.5 w-3.5 ${task.isOverdue ? 'text-rose-500' : 'text-slate-400'}`} />
-                              <span className={task.isOverdue ? 'text-rose-600 font-semibold' : ''}>
+                            <div className="flex items-center gap-1.5 text-slate-600">
+                              <Clock className={`h-3.5 w-3.5 ${task.isOverdue && task.status !== 'COMPLETED' && task.status !== 'CANCELLED' ? 'text-rose-500' : 'text-slate-400'}`} />
+                              <span className={task.isOverdue && task.status !== 'COMPLETED' && task.status !== 'CANCELLED' ? 'text-rose-600 font-semibold' : ''}>
                                 {format(new Date(task.dueDate), 'dd MMM yyyy, HH:mm', { locale: tr })}
                               </span>
+                              {task.status !== 'COMPLETED' && task.status !== 'CANCELLED' && (
+                                task.isOverdue ? (
+                                  <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 text-[10px] py-0 px-1 font-semibold">Gecikmiş</Badge>
+                                ) : isToday(new Date(task.dueDate)) ? (
+                                  <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] py-0 px-1 font-semibold">Bugün</Badge>
+                                ) : null
+                              )}
                             </div>
                           ) : (
                             <span className="text-slate-400">-</span>
@@ -473,7 +497,7 @@ export default function TaskListPage() {
                   <SelectContent>
                     {users.map((u) => (
                       <SelectItem key={u.id} value={String(u.id)}>
-                        {formatUserName(u.firstName, u.lastName)}
+                        {formatUserName(u.firstName, u.lastName)} — {mapUserRole(u.role)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -515,14 +539,31 @@ export default function TaskListPage() {
               </div>
 
               <div>
-                <Label className="text-xs font-semibold text-slate-700">Son Tarih & Saat</Label>
-                <Input
-                  type="datetime-local"
-                  value={formDueDate}
-                  onChange={(e) => setFormDueDate(e.target.value)}
-                  className="mt-1 h-9 text-xs"
-                />
+                <Label className="text-xs font-semibold text-slate-700">İlgili Destek Talebi (Opsiyonel)</Label>
+                <Select value={formTicketId} onValueChange={(val) => setFormTicketId(val || '')}>
+                  <SelectTrigger className="mt-1 h-9 text-xs">
+                    <SelectValue placeholder="Talep seçin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Yok</SelectItem>
+                    {filteredTickets.map((t) => (
+                      <SelectItem key={t.id} value={String(t.id)}>
+                        {t.ticketNumber} — {t.subject.length > 25 ? t.subject.substring(0, 25) + '...' : t.subject}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
+            </div>
+
+            <div>
+              <Label className="text-xs font-semibold text-slate-700">Son Tarih & Saat</Label>
+              <Input
+                type="datetime-local"
+                value={formDueDate}
+                onChange={(e) => setFormDueDate(e.target.value)}
+                className="mt-1 h-9 text-xs"
+              />
             </div>
           </div>
 

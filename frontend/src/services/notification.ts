@@ -29,12 +29,12 @@ export const notificationApi = {
   
   getUnread: async (): Promise<Notification[]> => {
     const response = await api.get('/api/notifications/unread');
-    return response.data;
+    return Array.isArray(response.data) ? response.data : [];
   },
   
   getUnreadCount: async (): Promise<number> => {
     const response = await api.get('/api/notifications/unread-count');
-    return response.data;
+    return typeof response.data === 'number' ? response.data : (Number(response.data) || 0);
   },
   
   markAsRead: async (id: number): Promise<void> => {
